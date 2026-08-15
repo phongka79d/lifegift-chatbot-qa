@@ -17,16 +17,23 @@ class MockDeterministicEmbeddings(Embeddings):
         self.dimension = dimension
 
     def _embed_text(self, text: str) -> List[float]:
-        # Generate stable, pseudo-random float vector from md5 hash
-        hasher = hashlib.sha256(text.encode("utf-8"))
-        digest = hasher.digest()
-        # Create deterministic normalized vector
-        vec = []
-        for i in range(self.dimension):
-            byte_val = digest[i % len(digest)]
-            val = (float(byte_val) / 255.0) - 0.5
-            vec.append(val)
-        # Normalize
+        vec = [0.0] * self.dimension
+        words = text.lower().split()
+        if not words:
+            return vec
+        for word in words:
+            h = int(hashlib.md5(word.encode("utf-8")).hexdigest(), 16)
+            idx = h % self.dimension
+            sign = 1.0 if (h >> 16) % 2 == 0 else -1.0
+            vec[idx] += sign
+
+        for i in range(len(words) - 1):
+            bigram = f"{words[i]}_{words[i+1]}"
+            h = int(hashlib.md5(bigram.encode("utf-8")).hexdigest(), 16)
+            idx = h % self.dimension
+            sign = 1.0 if (h >> 16) % 2 == 0 else -1.0
+            vec[idx] += sign * 1.5
+
         norm = sum(x * x for x in vec) ** 0.5
         if norm > 0:
             vec = [x / norm for x in vec]
