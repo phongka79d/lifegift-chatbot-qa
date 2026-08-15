@@ -33,6 +33,7 @@ MANIFEST
 .env.development
 .envrc
 .venv
+backend/.venv/
 env/
 venv/
 ENV/

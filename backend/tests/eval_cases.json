@@ -1,0 +1,359 @@
+[
+  {
+    "id": 1,
+    "category": "product_search",
+    "query": "Có cà phê nào dưới 200 nghìn không?",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "cà phê",
+    "expected_max_price": 200000,
+    "expected_product_id": 2
+  },
+  {
+    "id": 2,
+    "category": "product_search",
+    "query": "Tìm cà phê Arabica Cầu Đất",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "cà phê",
+    "expected_product_id": 1
+  },
+  {
+    "id": 3,
+    "category": "product_search",
+    "query": "Có trà nào từ Hà Giang không shop?",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "trà",
+    "expected_origin": "hà giang",
+    "expected_product_id": 5
+  },
+  {
+    "id": 4,
+    "category": "product_search",
+    "query": "Cho tôi xem các loại mật ong tự nhiên",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "mật ong",
+    "expected_product_id": 8
+  },
+  {
+    "id": 5,
+    "category": "product_search",
+    "query": "Tìm hạt điều Bình Phước giá dưới 180k",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "hạt",
+    "expected_max_price": 180000,
+    "expected_product_id": 10
+  },
+  {
+    "id": 6,
+    "category": "product_search",
+    "query": "Có trà Oolong Bảo Lộc không?",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "trà",
+    "expected_origin": "bảo lộc",
+    "expected_product_id": 6
+  },
+  {
+    "id": 7,
+    "category": "product_search",
+    "query": "Cho tôi xem hoa quả sấy dưới 100 nghìn",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "nông sản sấy",
+    "expected_max_price": 100000,
+    "expected_product_id": 12
+  },
+  {
+    "id": 8,
+    "category": "product_search",
+    "query": "Tìm set quà tặng doanh nghiệp dưới 900k",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "hộp quà tặng",
+    "expected_max_price": 900000,
+    "expected_product_id": 14
+  },
+  {
+    "id": 9,
+    "category": "product_search",
+    "query": "Có mật ong hoa cà phê Tây Nguyên không?",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "mật ong",
+    "expected_product_id": 9
+  },
+  {
+    "id": 10,
+    "category": "product_search",
+    "query": "Sản phẩm cà phê nào đang giảm giá?",
+    "expected_intent": "PRODUCT_SEARCH",
+    "expected_category": "cà phê",
+    "expected_product_id": 1
+  },
+
+  {
+    "id": 11,
+    "category": "recommendation",
+    "query": "Tôi thích cà phê thơm nhẹ, ít đắng, dưới 300 nghìn",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "cà phê",
+    "expected_max_price": 300000,
+    "expected_product_id": 1
+  },
+  {
+    "id": 12,
+    "category": "recommendation",
+    "query": "Gợi ý cho tôi trà giúp ngủ ngon, thư giãn",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "trà",
+    "expected_product_id": 7
+  },
+  {
+    "id": 13,
+    "category": "recommendation",
+    "query": "Tư vấn hộp quà tặng cho đối tác VIP ngân sách khoảng 800k",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "hộp quà tặng",
+    "expected_max_price": 800000,
+    "expected_product_id": 14
+  },
+  {
+    "id": 14,
+    "category": "recommendation",
+    "query": "Tôi muốn cà phê đậm đà để pha phin truyền thống sáng sớm",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "cà phê",
+    "expected_product_id": 2
+  },
+  {
+    "id": 15,
+    "category": "recommendation",
+    "query": "Gợi ý hạt dinh dưỡng tốt cho bà bầu và trẻ nhỏ",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "hạt",
+    "expected_product_id": 11
+  },
+  {
+    "id": 16,
+    "category": "recommendation",
+    "query": "Tìm quà biếu người lớn tuổi thanh lọc cơ thể",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_product_id": 5
+  },
+  {
+    "id": 17,
+    "category": "recommendation",
+    "query": "Món ăn vặt giòn thơm cho văn phòng ăn nhẹ",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_product_id": 10
+  },
+  {
+    "id": 18,
+    "category": "recommendation",
+    "query": "Mật ong tự nhiên bồi bổ người mới ốm dậy",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "mật ong",
+    "expected_product_id": 8
+  },
+  {
+    "id": 19,
+    "category": "recommendation",
+    "query": "Cà phê specialty hương hoa quả cao cấp làm quà tặng",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "cà phê",
+    "expected_product_id": 4
+  },
+  {
+    "id": 20,
+    "category": "recommendation",
+    "query": "Set quà trà cà phê tinh tế dưới 650k tặng thầy cô",
+    "expected_intent": "PRODUCT_RECOMMENDATION",
+    "expected_category": "hộp quà tặng",
+    "expected_max_price": 650000,
+    "expected_product_id": 15
+  },
+
+  {
+    "id": 21,
+    "category": "comparison",
+    "query": "So sánh Arabica Cầu Đất và Robusta Buôn Ma Thuột",
+    "expected_intent": "PRODUCT_COMPARE",
+    "expected_products": ["Arabica Cầu Đất", "Robusta Buôn Ma Thuột"]
+  },
+  {
+    "id": 22,
+    "category": "comparison",
+    "query": "Trà Shan Tuyết và Trà Oolong khác nhau thế nào?",
+    "expected_intent": "PRODUCT_COMPARE",
+    "expected_products": ["Trà Shan Tuyết", "Trà Oolong"]
+  },
+  {
+    "id": 23,
+    "category": "comparison",
+    "query": "Nên mua Mật ong U Minh hay Mật ong hoa cà phê?",
+    "expected_intent": "PRODUCT_COMPARE",
+    "expected_products": ["Mật ong U Minh", "Mật ong hoa cà phê"]
+  },
+  {
+    "id": 24,
+    "category": "comparison",
+    "query": "So sánh hạt điều Bình Phước với hạt mắc ca Lâm Đồng",
+    "expected_intent": "PRODUCT_COMPARE",
+    "expected_products": ["hạt điều", "mắc ca"]
+  },
+  {
+    "id": 25,
+    "category": "comparison",
+    "query": "So sánh Xoài sấy dẻo và Mít sấy giòn",
+    "expected_intent": "PRODUCT_COMPARE",
+    "expected_products": ["Xoài sấy dẻo", "Mít sấy giòn"]
+  },
+
+  {
+    "id": 26,
+    "category": "knowledge",
+    "query": "Cách chọn cà phê nguyên chất chuẩn vị không pha tạp?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 27,
+    "category": "knowledge",
+    "query": "Lợi ích sức khỏe của trà Shan Tuyết cổ thụ là gì?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 28,
+    "category": "knowledge",
+    "query": "Làm thế nào để nhận biết mật ong rừng tự nhiên nguyên chất?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 29,
+    "category": "knowledge",
+    "query": "Hướng dẫn cách pha trà Shan Tuyết đúng nhiệt độ",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 30,
+    "category": "knowledge",
+    "query": "Xu hướng chọn quà tặng doanh nghiệp từ nông sản xanh",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 31,
+    "category": "knowledge",
+    "query": "Cà phê Arabica và Robusta có đặc tính sinh học khác nhau thế nào?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 32,
+    "category": "knowledge",
+    "query": "Cách bảo quản hạt điều để giữ được độ giòn ngon?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 33,
+    "category": "knowledge",
+    "query": "Bà bầu có nên sử dụng hạt mắc ca mỗi ngày không?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 34,
+    "category": "knowledge",
+    "query": "Quy trình chế biến sấy lạnh xoài cát giữ vitamin ra sao?",
+    "expected_intent": "KNOWLEDGE"
+  },
+  {
+    "id": 35,
+    "category": "knowledge",
+    "query": "Tiêu chuẩn chứng nhận VietGAP trong trồng trọt nông sản là gì?",
+    "expected_intent": "KNOWLEDGE"
+  },
+
+  {
+    "id": 36,
+    "category": "stock",
+    "query": "Cà phê Arabica Cầu Đất 500g còn hàng không?",
+    "expected_intent": "PRODUCT_DETAIL",
+    "expected_product_id": 1,
+    "expected_in_stock": true
+  },
+  {
+    "id": 37,
+    "category": "stock",
+    "query": "Cà phê Robusta Honey Process còn hàng trong kho không?",
+    "expected_intent": "PRODUCT_DETAIL",
+    "expected_product_id": 16,
+    "expected_in_stock": false
+  },
+  {
+    "id": 38,
+    "category": "stock",
+    "query": "Trà Shan Tuyết cổ thụ 100g số lượng tồn kho còn bao nhiêu?",
+    "expected_intent": "PRODUCT_DETAIL",
+    "expected_product_id": 5,
+    "expected_in_stock": true
+  },
+  {
+    "id": 39,
+    "category": "stock",
+    "query": "Kiểm tra tồn kho Mật ong rừng U Minh 500ml",
+    "expected_intent": "PRODUCT_DETAIL",
+    "expected_product_id": 8,
+    "expected_in_stock": true
+  },
+  {
+    "id": 40,
+    "category": "stock",
+    "query": "Hộp quà nông sản Dưỡng Lành còn đủ 10 hộp giao ngay không?",
+    "expected_intent": "PRODUCT_DETAIL",
+    "expected_product_id": 14,
+    "expected_in_stock": true
+  },
+
+  {
+    "id": 41,
+    "category": "review",
+    "query": "Khách hàng đánh giá thế nào về Cà phê Arabica Cầu Đất?",
+    "expected_intent": "PRODUCT_REVIEW",
+    "expected_product_id": 1
+  },
+  {
+    "id": 42,
+    "category": "review",
+    "query": "Đánh giá của khách về Trà Shan Tuyết cổ thụ Hà Giang",
+    "expected_intent": "PRODUCT_REVIEW",
+    "expected_product_id": 5
+  },
+  {
+    "id": 43,
+    "category": "review",
+    "query": "Cho tôi xem nhận xét về Robusta Buôn Ma Thuột",
+    "expected_intent": "PRODUCT_REVIEW",
+    "expected_product_id": 2
+  },
+
+  {
+    "id": 44,
+    "category": "order_status",
+    "query": "Tra cứu đơn hàng ORD-20260812-0001 của tôi",
+    "expected_intent": "ORDER_STATUS",
+    "expected_order_code": "ORD-20260812-0001",
+    "owner_user_id": 1
+  },
+  {
+    "id": 45,
+    "category": "order_status",
+    "query": "Tình trạng đơn ORD-20260810-0099 đã giao chưa?",
+    "expected_intent": "ORDER_STATUS",
+    "expected_order_code": "ORD-20260810-0099",
+    "owner_user_id": 2
+  },
+  {
+    "id": 46,
+    "category": "general",
+    "query": "Xin chào LifeGift, bạn có thể giúp gì cho tôi?",
+    "expected_intent": "GENERAL"
+  },
+  {
+    "id": 47,
+    "category": "general",
+    "query": "Cảm ơn bạn rất nhiều nhé!",
+    "expected_intent": "GENERAL"
+  }
+]
