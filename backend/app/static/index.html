@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeGift - Trợ Lý Nông Sản Đặc Sản Việt Nam</title>
+  <meta name="description" content="Trợ lý ảo tư vấn nông sản sạch, trà cổ thụ, cà phê specialty, mật ong rừng và quà tặng nông sản LifeGift">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar / Top Header -->
+    <header class="app-header">
+      <div class="brand-container">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>LifeGift AI Assistant</h1>
+          <span class="brand-sub">Nông Sản Đặc Sản & Tư Vấn Mua Sắm Thực Tế</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="status-pills">
+          <span class="status-indicator online" id="status-mysql">
+            <span class="dot"></span> MySQL 8.0
+          </span>
+          <span class="status-indicator online" id="status-qdrant">
+            <span class="dot"></span> Qdrant RAG
+          </span>
+        </div>
+
+        <div class="user-selector-wrapper">
+          <label for="user-select">Tài khoản:</label>
+          <select id="user-select" class="user-select">
+            <option value="">Khách vãng lai (Chưa đăng nhập)</option>
+            <option value="1">Nguyễn Văn An (ID: 1 - Có đơn ORD-20260812-0001)</option>
+            <option value="2">Trần Thị Mai (ID: 2 - Có đơn ORD-20260810-0099)</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- Chat Container -->
+    <main class="chat-viewport">
+      <div id="messages-container" class="messages-container">
+        <!-- Initial Welcome Message -->
+        <div class="message assistant-message animate-fade-in">
+          <div class="message-avatar">
+            <div class="avatar-badge">LG</div>
+          </div>
+          <div class="message-body">
+            <div class="message-author">Trợ Lý LifeGift</div>
+            <div class="message-content">
+              <p>Chào bạn! Em là <strong>Trợ lý Nông sản LifeGift</strong>. Em có thể giúp bạn:</p>
+              <ul>
+                <li>Tìm kiếm sản phẩm theo giá bán thực tế và tồn kho thời gian thực.</li>
+                <li>Tư vấn, gợi ý theo khẩu vị (thơm nhẹ, ít đắng, thanh lọc, quà biếu...).</li>
+                <li>So sánh chi tiết đặc tính, giá cả, hương vị giữa các dòng sản phẩm.</li>
+                <li>Cung cấp kiến thức nông sản sạch, cách pha chế và chứng chỉ OCOP/VietGAP.</li>
+                <li>Tra cứu tình trạng và lịch sử vận chuyển đơn hàng của bạn.</li>
+              </ul>
+            </div>
+            
+            <div class="quick-prompts-container">
+              <div class="quick-prompts-title">Câu hỏi gợi ý để bạn trải nghiệm thử:</div>
+              <div class="quick-prompts-grid">
+                <button class="prompt-chip" data-prompt="Có cà phê nào dưới 250 nghìn không?">
+                  ☕ Cà phê dưới 250k
+                </button>
+                <button class="prompt-chip" data-prompt="Tôi thích trà thơm nhẹ thanh nhiệt, giá dưới 200k">
+                  🍵 Gợi ý trà thơm thanh nhiệt
+                </button>
+                <button class="prompt-chip" data-prompt="So sánh Arabica Cầu Đất và Robusta Buôn Ma Thuột">
+                  ⚖️ So sánh Arabica & Robusta
+                </button>
+                <button class="prompt-chip" data-prompt="Lợi ích sức khỏe của trà Shan Tuyết cổ thụ là gì?">
+                  🌿 Kiến thức trà Shan Tuyết
+                </button>
+                <button class="prompt-chip" data-prompt="Cà phê Arabica Cầu Đất 500g còn hàng trong kho không?">
+                  📦 Kiểm tra tồn kho Arabica
+                </button>
+                <button class="prompt-chip" data-prompt="Tra cứu đơn hàng ORD-20260812-0001 của tôi">
+                  🚚 Tra cứu đơn ORD-20260812-0001
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Chat Input Area -->
+    <footer class="chat-input-area">
+      <div class="input-form-wrapper">
+        <textarea
+          id="chat-input"
+          class="chat-input"
+          placeholder="Nhập câu hỏi của bạn (ví dụ: Tìm hạt điều dưới 200k, tư vấn set quà biếu...)"
+          rows="1"
+        ></textarea>
+        <button id="send-button" class="send-button" title="Gửi tin nhắn">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Product Detail Modal -->
+  <div id="product-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <button id="modal-close-btn" class="modal-close" title="Đóng">&times;</button>
+      <div id="modal-body" class="modal-content">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

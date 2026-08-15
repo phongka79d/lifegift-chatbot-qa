@@ -57,6 +57,19 @@ def create_app() -> FastAPI:
     app.include_router(chat_router, prefix="/api", tags=["Chat"])
     app.include_router(products_router, prefix="/api", tags=["Products"])
 
+    # Mount static files and web interface
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def root():
+            return FileResponse(str(static_dir / "index.html"))
+
     return app
 
 
