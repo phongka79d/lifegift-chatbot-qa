@@ -187,6 +187,15 @@ class Review(Base):
     user = relationship("User", back_populates="reviews")
 
 
+class BlogCategory(Base):
+    __tablename__ = "blog_categories"
+
+    id = Column(PK_BIGINT, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(255), nullable=False, unique=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BlogPost(Base):
     __tablename__ = "blog_posts"
 

@@ -31,6 +31,7 @@ from backend.app.models.tables import (
     Inventory,
     Review,
     BlogPost,
+    BlogCategory,
     Order,
     OrderItem,
     OrderStatusHistory,
@@ -46,6 +47,7 @@ from backend.scripts.seed_demo_data import (
     WAREHOUSES,
     REVIEWS,
     BLOG_POSTS,
+    BLOG_CATEGORIES,
     ORDERS,
 )
 
@@ -157,6 +159,11 @@ def seed_test_database(session: Session):
                 content=rev["content"],
                 status=rev["status"],
             )
+        )
+
+    for bc in BLOG_CATEGORIES:
+        session.add(
+            BlogCategory(id=bc["id"], name=bc["name"], slug=bc["slug"])
         )
 
     for blog in BLOG_POSTS:

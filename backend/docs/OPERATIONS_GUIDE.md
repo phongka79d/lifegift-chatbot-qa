@@ -52,23 +52,23 @@ All settings are configured via environment variables or a `.env` file in `backe
 | Variable | Type | Description | Default / Example |
 |---|---|---|---|
 | `APP_ENV` | `string` | Runtime environment (`development`, `testing`, `production`) | `development` |
-| `DATABASE_URL` | `string` | SQLAlchemy connection string (MySQL or SQLite) | `mysql+pymysql://root:password@127.0.0.1:3306/lifegift_db?charset=utf8mb4` |
-| `MYSQL_HOST` | `string` | MySQL host | `127.0.0.1` |
+| `DATABASE_URL` | `string` | Optional full SQLAlchemy connection string; overrides MYSQL_* settings when set (MySQL or SQLite) | `mysql+pymysql://root:password@127.0.0.1:3306/lifegift?charset=utf8mb4` |
+| `MYSQL_HOST` | `string` | MySQL host | `localhost` |
 | `MYSQL_PORT` | `int` | MySQL port | `3306` |
 | `MYSQL_USER` | `string` | Database user | `root` |
-| `MYSQL_PASSWORD` | `string` | Database password | `""` |
-| `MYSQL_DATABASE` | `string` | Database name | `lifegift_db` |
-| `QDRANT_HOST` | `string` | Qdrant vector database host | `localhost` |
-| `QDRANT_PORT` | `int` | Qdrant port | `6333` |
+| `MYSQL_PASSWORD` | `string` | Database password | `password` |
+| `MYSQL_DATABASE` | `string` | Database name | `lifegift` |
+| `QDRANT_URL` | `string` | Qdrant server URL (HTTP/HTTPS) or path for local mode | `http://localhost:6333` |
 | `QDRANT_API_KEY` | `string` | Qdrant Cloud API key (optional for local) | `""` |
 | `QDRANT_COLLECTION` | `string` | Collection name for semantic retrieval | `lifegift_knowledge` |
-| `LLM_PROVIDER` | `string` | LLM provider (`openai`, `azure`, `local`, `mock`) | `openai` |
+| `LLM_BASE_URL` | `string` | OpenAI-compatible LLM endpoint base URL | `https://api.openai.com/v1` |
+| `LLM_API_KEY` | `string` | LLM API key (empty disables remote LLM; deterministic fallback is used) | `""` |
 | `LLM_MODEL` | `string` | Model name | `gpt-4o-mini` |
-| `LLM_API_KEY` | `string` | LLM API key | `""` |
-| `LLM_BASE_URL` | `string` | Custom OpenAI-compatible base URL | `None` |
-| `EMBEDDING_PROVIDER` | `string` | Embedding provider | `openai` |
+| `LLM_TEMPERATURE` | `float` | LLM sampling temperature (keep 0 for extraction/generation determinism) | `0.0` |
+| `EMBEDDING_BASE_URL` | `string` | OpenAI-compatible embedding endpoint base URL | `https://api.openai.com/v1` |
+| `EMBEDDING_API_KEY` | `string` | Embedding API key (empty disables remote embeddings; deterministic mock embeddings are used) | `""` |
 | `EMBEDDING_MODEL` | `string` | Embedding model name | `text-embedding-3-small` |
-| `EMBEDDING_API_KEY` | `string` | Embedding API key | `""` |
+| `EMBEDDING_DIMENSION` | `int` | Embedding vector dimension used for the Qdrant collection | `1536` |
 
 ---
 
@@ -140,12 +140,13 @@ Handles customer chat turns with intent extraction, grounding context injection,
       "origin": "Cầu Đất - Đà Lạt",
       "available_quantity": 85,
       "is_available": true,
-      "image_url": "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?w=600"
+      "image_url": "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?w=600",
+      "reason": null
     }
   ],
   "metadata": {
-    "products_count": 1,
-    "has_retrieval": false
+    "intent": "PRODUCT_SEARCH",
+    "tool": "search_products"
   }
 }
 ```
@@ -155,3 +156,36 @@ Returns complete product details with active quality certificates and live inven
 
 ### `GET /api/chat/sessions/{session_id}`
 Returns chat history for a session, checking ownership if the session was created by an authenticated user.
+
+---
+
+## 6. Demo Validation Results (Plan Section 59)
+
+Recorded with the deterministic fallback stack (no `LLM_API_KEY` / `EMBEDDING_API_KEY`) against a seeded
+migration database; Qdrant ran locally with mock deterministic embeddings.
+
+| Demo | Query | Result |
+|---|---|---|
+| 1. Product search | "Có cà phê nào dưới 200 nghìn?" | PASS — Robusta Buôn Ma Thuột returned, effective price 180.000đ |
+| 2. Hybrid recommendation | "Tôi thích cà phê thơm nhẹ, ít đắng, dưới 300 nghìn." | PASS — MySQL hard constraints enforced, semantic ranking engaged, `semantic_used: true` |
+| 3. Comparison | "So sánh Arabica và Robusta." | PASS — both resolved with current price, origin, and stock |
+| 4. Knowledge RAG | "Cách chọn cà phê nguyên chất?" | PASS — 4 grounded chunks retrieved; unpublished draft excluded from index |
+| 5. Stock | "Arabica còn hàng không?" | PASS — stock reported from `SUM(inventories.available_quantity)` = 85 |
+| 6. Order status | "Đơn ORD-20260812-0001 của tôi đang ở đâu?" | PASS — authenticated owner sees SHIPPING/PAID history; anonymous gets login prompt with zero order data |
+
+Note: semantic ranking *order* in Demo 2 depends on embedding quality; with real provider embeddings the
+expected top result is Arabica Cầu Đất. Ranking quality is validated against `tests/eval_cases.json`, not
+asserted by the mock-embedding demo.
+
+## 7. Known Limitations
+
+- Authentication is a mock contract (`X-User-Id` header or `Bearer user_<id>` / numeric token). Wire it to
+  the real LifeGift auth provider before production.
+- The deterministic intent fallback handles common Vietnamese phrasing; connect `LLM_API_KEY` for the full
+  structured-extraction path (validated by the same Pydantic schema).
+- `products.effective_price` is a MySQL generated column; when using SQLite for tests the equivalent is
+  computed as `COALESCE(sale_price, price)` in repository SQL.
+- Migrations 002–004 are idempotent for MySQL 8.0 (information_schema-guarded DDL). Re-run safety on
+  MariaDB is also confirmed but MySQL remains the supported target.
+- No separate observability stack: structured application logs cover request id, intent, tool, duration,
+  retrieval count, and error type.

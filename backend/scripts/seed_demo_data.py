@@ -542,6 +542,12 @@ WAREHOUSES = [
     {"id": 2, "name": "Kho Hà Nội", "status": "ACTIVE"},
 ]
 
+BLOG_CATEGORIES = [
+    {"id": 1, "name": "Kiến thức cà phê", "slug": "kien-thuc-ca-phe"},
+    {"id": 2, "name": "Kiến thức trà & thảo mộc", "slug": "kien-thuc-tra"},
+    {"id": 6, "name": "Quà tặng doanh nghiệp", "slug": "qua-tang-doanh-nghiep"},
+]
+
 REVIEWS = [
     {
         "id": 1,
@@ -839,6 +845,17 @@ def seed_database():
                     ON DUPLICATE KEY UPDATE status=VALUES(status), rating=VALUES(rating)
                 """),
                 rev
+            )
+
+        logger.info("Seeding blog categories...")
+        for bc in BLOG_CATEGORIES:
+            session.execute(
+                text("""
+                    INSERT INTO blog_categories (id, name, slug)
+                    VALUES (:id, :name, :slug)
+                    ON DUPLICATE KEY UPDATE name=VALUES(name), slug=VALUES(slug)
+                """),
+                bc
             )
 
         logger.info("Seeding blog posts...")

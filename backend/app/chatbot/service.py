@@ -78,20 +78,31 @@ class ChatbotService:
 
         if intent == IntentEnum.PRODUCT_SEARCH:
             products, context_str = await self._handle_product_search(extracted)
+            metadata["tool"] = "search_products"
         elif intent == IntentEnum.PRODUCT_RECOMMENDATION:
-            products, context_str = await self._handle_recommendation(extracted)
+            products, context_str, rec_meta = await self._handle_recommendation(extracted)
+            metadata.update(rec_meta)
+            metadata["tool"] = "recommendation_service"
         elif intent == IntentEnum.PRODUCT_DETAIL:
-            products, context_str = await self._handle_product_detail(extracted)
+            products, context_str, meta = await self._handle_product_detail(extracted)
+            metadata.update(meta)
+            metadata["tool"] = "get_product"
         elif intent == IntentEnum.PRODUCT_COMPARE:
             products, context_str = await self._handle_product_compare(extracted)
+            metadata["tool"] = "compare_products"
         elif intent == IntentEnum.KNOWLEDGE:
-            products, context_str = await self._handle_knowledge(extracted)
+            products, context_str, meta = await self._handle_knowledge(extracted)
+            metadata.update(meta)
+            metadata["tool"] = "search_knowledge"
         elif intent == IntentEnum.PRODUCT_REVIEW:
             products, context_str = await self._handle_product_review(extracted)
+            metadata["tool"] = "get_product_reviews"
         elif intent == IntentEnum.ORDER_STATUS:
             products, context_str = await self._handle_order_status(extracted, user_id)
+            metadata["tool"] = "get_order_status"
         else:
             context_str = "Khách hàng gửi câu hỏi chung hoặc lời chào. Hãy chào đón nồng nhiệt và giới thiệu các nhóm nông sản thế mạnh của LifeGift (Cà phê Tây Nguyên, Trà cổ thụ Hà Giang, Mật ong rừng U Minh, Hạt dinh dưỡng, Nông sản sấy và Hộp quà Tết)."
+            metadata["tool"] = "general"
 
         # 6. Generate final conversational answer
         answer = await self._generate_answer(
@@ -138,7 +149,7 @@ class ChatbotService:
 
     async def _handle_recommendation(
         self, extracted: IntentExtractionResult
-    ) -> Tuple[List[ProductCard], str]:
+    ) -> Tuple[List[ProductCard], str, Dict[str, Any]]:
         products, semantic_used = self.rec_service.recommend(
             category=extracted.category,
             origin=extracted.origin,
@@ -149,12 +160,24 @@ class ChatbotService:
             in_stock=extracted.in_stock_only,
             top_k=3,
         )
+        if not products:
+            context = (
+                "Không có sản phẩm nào trong kho đáp ứng đầy đủ tiêu chí (danh mục, ngân sách, tình trạng còn hàng). "
+                "Hãy thông báo rõ ràng cho khách và gợi ý nới lỏng ngân sách hoặc tham khảo danh mục khác; tuyệt đối không gợi ý sản phẩm ngoài danh sách cung cấp."
+            )
+            return [], context, {"semantic_used": semantic_used, "no_match": True}
+
         context = build_chat_context(products=products)
-        return products, context
+        if not semantic_used and (extracted.preferences or extracted.query):
+            context += (
+                "\n\nLƯU Ý CHO TRỢ LÝ: Hệ thống gợi ý theo ngữ nghĩa (Qdrant) hiện không khả dụng, "
+                "danh sách trên chỉ được lọc theo tiêu chí cứng từ MySQL. Hãy nêu rõ rằng việc so khớp sở thích bị giới hạn và không tự suy đoán thêm hương vị."
+            )
+        return products, context, {"semantic_used": semantic_used, "no_match": False}
 
     async def _handle_product_detail(
         self, extracted: IntentExtractionResult
-    ) -> Tuple[List[ProductCard], str]:
+    ) -> Tuple[List[ProductCard], str, Dict[str, Any]]:
         # Try resolving product
         target_name = (
             extracted.product_names[0]
@@ -173,6 +196,7 @@ class ChatbotService:
             return (
                 [],
                 f"Không tìm thấy sản phẩm nào khớp với tên '{target_name}' trong hệ thống. Hãy thông báo rõ ràng cho khách và gợi ý các danh mục có sẵn.",
+                {"retrieval_count": 0},
             )
 
         detail = self.product_repo.get_by_id(resolved.id)
@@ -187,7 +211,7 @@ class ChatbotService:
             product_detail=detail,
             knowledge_chunks=k_chunks,
         )
-        return [resolved], context
+        return [resolved], context, {"retrieval_count": len(k_chunks)}
 
     async def _handle_product_compare(
         self, extracted: IntentExtractionResult
@@ -227,7 +251,7 @@ class ChatbotService:
 
     async def _handle_knowledge(
         self, extracted: IntentExtractionResult
-    ) -> Tuple[List[ProductCard], str]:
+    ) -> Tuple[List[ProductCard], str, Dict[str, Any]]:
         query_text = extracted.query or "kiến thức nông sản"
         chunks = self.retriever.retrieve(query=query_text, limit=4)
 
@@ -239,7 +263,7 @@ class ChatbotService:
         else:
             context = build_chat_context(knowledge_chunks=chunks)
 
-        return [], context
+        return [], context, {"retrieval_count": len(chunks)}
 
     async def _handle_product_review(
         self, extracted: IntentExtractionResult
@@ -315,10 +339,23 @@ class ChatbotService:
     def _format_deterministic_fallback(self, user_message: str, context: str) -> str:
         """Deterministic, grounded answer formatter for offline / test environments."""
         if "DANH SÁCH SẢN PHẨM TÌM THẤY" in context:
-            return (
+            limited = "không khả dụng" in context or "bị giới hạn" in context
+            if "LƯU Ý CHO TRỢ LÝ" in context:
+                context = context.split("LƯU Ý CHO TRỢ LÝ")[0].rstrip()
+            answer = (
                 "Dưới đây là các sản phẩm nông sản LifeGift phù hợp với yêu cầu của bạn được kiểm tra trực tiếp từ kho hàng:\n\n"
                 + context.replace("DANH SÁCH SẢN PHẨM TÌM THẤY (DỮ LIỆU TỪ MYSQL):\n", "")
                 + "\n\nBạn có thể nhấn vào thẻ sản phẩm bên dưới để xem chi tiết hoặc đặt hàng trực tiếp."
+            )
+            if limited:
+                answer += "\n\nLưu ý: hiện tại hệ thống chưa thể so khớp sở thích theo ngữ nghĩa nên danh sách trên được lọc theo tiêu chí cứng (ngân sách, danh mục, tồn kho)."
+            return answer
+        if "không có sản phẩm nào trong kho đáp ứng" in context.lower() or (
+            "Không có sản phẩm nào trong kho" in context
+        ):
+            return (
+                "Dạ, hiện tại LifeGift chưa có sản phẩm nào trong kho đáp ứng đầy đủ tiêu chí bạn đưa ra. "
+                "Bạn có thể nới lỏng ngân sách hoặc tham khảo thêm các danh mục nông sản khác của LifeGift nhé!"
             )
         elif "THÔNG TIN CHI TIẾT SẢN PHẨM" in context:
             return (

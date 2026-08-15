@@ -15,5 +15,29 @@ CREATE TABLE IF NOT EXISTS product_certificates (
     CONSTRAINT fk_product_certificates_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_product_certificates_product ON product_certificates(product_id);
-CREATE INDEX idx_product_certificates_status ON product_certificates(status);
+-- Idempotent index creation (MySQL 8.0 lacks CREATE INDEX IF NOT EXISTS)
+SET @has_cert_product_idx = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_certificates' AND INDEX_NAME = 'idx_product_certificates_product'
+);
+SET @ddl_cert_product_idx = IF(
+    @has_cert_product_idx = 0,
+    'CREATE INDEX idx_product_certificates_product ON product_certificates(product_id)',
+    'SELECT ''idx_product_certificates_product already exists'''
+);
+PREPARE stmt_cert_product_idx FROM @ddl_cert_product_idx;
+EXECUTE stmt_cert_product_idx;
+DEALLOCATE PREPARE stmt_cert_product_idx;
+
+SET @has_cert_status_idx = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_certificates' AND INDEX_NAME = 'idx_product_certificates_status'
+);
+SET @ddl_cert_status_idx = IF(
+    @has_cert_status_idx = 0,
+    'CREATE INDEX idx_product_certificates_status ON product_certificates(status)',
+    'SELECT ''idx_product_certificates_status already exists'''
+);
+PREPARE stmt_cert_status_idx FROM @ddl_cert_status_idx;
+EXECUTE stmt_cert_status_idx;
+DEALLOCATE PREPARE stmt_cert_status_idx;

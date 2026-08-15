@@ -28,8 +28,9 @@ class ChatRepository:
                 {"id": session_id},
             ).fetchone()
             if row:
-                # If session has an owner and authenticated user is different, disallow
-                if row.user_id is not None and user_id is not None and row.user_id != user_id:
+                # Owned sessions may only be used by their authenticated owner;
+                # anonymous callers can never read or write an owned session.
+                if row.user_id is not None and row.user_id != user_id:
                     raise PermissionError(f"Session {session_id} does not belong to user {user_id}")
                 return row.id
 
@@ -136,7 +137,7 @@ class ChatRepository:
         ).fetchone()
         if not row:
             return None
-        if row.user_id is not None and user_id is not None and row.user_id != user_id:
+        if row.user_id is not None and row.user_id != user_id:
             raise PermissionError("Unauthorized access to chat session.")
 
         messages = self.get_recent_messages(session_id=session_id, limit=50)

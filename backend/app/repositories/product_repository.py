@@ -20,13 +20,14 @@ class ProductRepository:
         bind_params: Dict[str, Any] = {}
 
         if params.category:
+            # Match the category table only; a product-name fallback pass runs
+            # separately so name mentions never leak other categories in.
             conditions.append(
-                "(LOWER(c.name) LIKE :category OR LOWER(c.slug) LIKE :category_slug OR LOWER(p.name) LIKE :category_name)"
+                "(LOWER(c.name) LIKE :category OR LOWER(c.slug) LIKE :category_slug)"
             )
             cat_clean = f"%{params.category.strip().lower()}%"
             bind_params["category"] = cat_clean
             bind_params["category_slug"] = cat_clean
-            bind_params["category_name"] = cat_clean
 
         if params.brand:
             conditions.append("LOWER(b.name) LIKE :brand")
@@ -227,7 +228,9 @@ class ProductRepository:
 
     def resolve_by_name(self, name: str) -> Optional[ProductCard]:
         """Resolve a product by approximate/substring name search."""
-        target = name.strip().lower()
+        target = (name or "").strip().lower()
+        if not target:
+            return None
         # Fetch active products and score by token overlap or exact substring
         sql = """
             SELECT
