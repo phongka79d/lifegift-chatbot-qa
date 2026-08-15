@@ -77,3 +77,8 @@ Thumbs.db
 # Ruff / Mypy
 .ruff_cache/
 .mypy_cache/
+
+# Agent & OpenSpec configs
+.agents/
+openspec/
+
