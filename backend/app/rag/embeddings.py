@@ -53,8 +53,8 @@ def get_embedding_client(
 ) -> Embeddings:
     """Return an initialized OpenAI-compatible embeddings client or deterministic fallback."""
     settings = get_settings()
-    key = api_key or settings.EMBEDDING_API_KEY
-    url = base_url or settings.EMBEDDING_BASE_URL
+    key = api_key or settings.effective_embedding_api_key
+    url = base_url or settings.effective_embedding_base_url
     model_name = model or settings.EMBEDDING_MODEL
 
     if not key or key.strip() in ("", "your_embedding_api_key_here", "test_key"):

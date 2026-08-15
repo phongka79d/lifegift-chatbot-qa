@@ -224,7 +224,7 @@ class FallbackStructuredLLM:
 def get_chat_model():
     """Create configured ChatOpenAI instance or return fallback when no valid API key."""
     settings = get_settings()
-    key = settings.LLM_API_KEY
+    key = settings.effective_llm_api_key
     if not key or key.strip() in ("", "your_llm_api_key_here", "test_key"):
         return None
 
@@ -233,7 +233,7 @@ def get_chat_model():
         return ChatOpenAI(
             model=settings.LLM_MODEL,
             api_key=key,
-            base_url=settings.LLM_BASE_URL,
+            base_url=settings.effective_llm_base_url,
             temperature=settings.LLM_TEMPERATURE,
         )
     except Exception as exc:

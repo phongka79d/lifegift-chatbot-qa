@@ -35,16 +35,33 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION: str = "lifegift_knowledge"
 
     # OpenAI-Compatible LLM Configuration
-    LLM_BASE_URL: Optional[str] = "https://api.openai.com/v1"
+    OPENAI_API_KEY: Optional[str] = None
+    LLM_BASE_URL: Optional[str] = None
     LLM_API_KEY: Optional[str] = None
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0.0
 
     # OpenAI-Compatible Embedding Configuration
-    EMBEDDING_BASE_URL: Optional[str] = "https://api.openai.com/v1"
+    EMBEDDING_BASE_URL: Optional[str] = None
     EMBEDDING_API_KEY: Optional[str] = None
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIMENSION: int = 1536
+
+    @property
+    def effective_llm_api_key(self) -> Optional[str]:
+        return self.LLM_API_KEY or self.OPENAI_API_KEY
+
+    @property
+    def effective_llm_base_url(self) -> Optional[str]:
+        return self.LLM_BASE_URL
+
+    @property
+    def effective_embedding_api_key(self) -> Optional[str]:
+        return self.EMBEDDING_API_KEY or self.LLM_API_KEY or self.OPENAI_API_KEY
+
+    @property
+    def effective_embedding_base_url(self) -> Optional[str]:
+        return self.EMBEDDING_BASE_URL or self.LLM_BASE_URL
 
     @property
     def sync_database_url(self) -> str:
