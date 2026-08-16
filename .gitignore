@@ -82,4 +82,5 @@ Thumbs.db
 # Agent & OpenSpec configs
 .agents/
 openspec/
+.herdr/
 

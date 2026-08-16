@@ -62,15 +62,27 @@ def create_app() -> FastAPI:
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse
 
+    frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
     static_dir = Path(__file__).parent / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    if frontend_dist.exists():
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
         @app.get("/", include_in_schema=False)
         async def root():
-            return FileResponse(str(static_dir / "index.html"))
+            return FileResponse(str(frontend_dist / "index.html"))
+
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        if not frontend_dist.exists():
+            @app.get("/", include_in_schema=False)
+            async def fallback_root():
+                return FileResponse(str(static_dir / "index.html"))
 
     return app
+
 
 
 app = create_app()
