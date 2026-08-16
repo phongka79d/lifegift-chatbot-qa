@@ -27,6 +27,7 @@ class RecommendationService:
         brand: Optional[str] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
+        price_unit: str = "PACKAGE",
         preferences: Optional[str] = None,
         in_stock: bool = True,
         top_k: int = 3,
@@ -39,6 +40,7 @@ class RecommendationService:
             brand=brand,
             min_price=min_price,
             max_price=max_price,
+            price_unit=price_unit or "PACKAGE",
             in_stock=in_stock,
             limit=10,
         )

@@ -19,9 +19,21 @@ def build_chat_context(
     reviews: Optional[Dict[str, Any]] = None,
     order: Optional[OrderStatusResponse] = None,
     comparison_products: Optional[List[ProductDetailResponse]] = None,
+    applied_filters: Optional[Dict[str, Any]] = None,
+    empty_reason: Optional[str] = None,
+    available_categories: Optional[List[str]] = None,
 ) -> str:
     """Build a compact, clean text representation of factual data for grounding LLM answers."""
     blocks = []
+
+    if applied_filters:
+        parts = []
+        for key in ("category", "origin", "brand", "min_price", "max_price", "price_unit", "query"):
+            val = applied_filters.get(key)
+            if val is not None and val != "":
+                parts.append(f"{key}={val}")
+        if parts:
+            blocks.append("BỘ LỌC ĐÃ ÁP DỤNG: " + ", ".join(parts))
 
     # 1. Product list / Search / Recommendation results
     if products:
@@ -30,12 +42,32 @@ def build_chat_context(
             price_str = format_currency_vnd(p.effective_price)
             if p.sale_price and p.sale_price < p.price:
                 price_str += f" (Giá gốc: {format_currency_vnd(p.price)}, Đang giảm giá)"
+            basis = getattr(p, "price_basis", None) or "package"
+            price_extra = f" | Cơ sở giá: gói/hộp"
+            if getattr(p, "price_per_kg", None) is not None:
+                price_extra += f" | Ước tính /kg: {format_currency_vnd(p.price_per_kg)}"
+            if getattr(p, "weight", None):
+                price_extra += f" | KL: {p.weight:g}g"
             stock_str = f"Còn {p.available_quantity} sản phẩm" if p.is_available else "Hết hàng"
             reason_str = f" - Lý do gợi ý: {p.reason}" if p.reason else ""
+            cat_name = getattr(p, "category_name", None)
+            cat_str = f" | Danh mục: {cat_name}" if cat_name else ""
             prod_lines.append(
-                f"- [ID: {p.id}] {p.name} | Giá: {price_str} | Xuất xứ: {p.origin or 'Việt Nam'} | Tình trạng: {stock_str}{reason_str}"
+                f"- [ID: {p.id}] {p.name}{cat_str} | Giá gói: {price_str}{price_extra} | "
+                f"Xuất xứ: {p.origin or 'Việt Nam'} | Tình trạng: {stock_str}{reason_str}"
             )
         blocks.append("\n".join(prod_lines))
+    elif empty_reason:
+        empty_lines = [
+            "KHÔNG CÓ SẢN PHẨM KHỚP BỘ LỌC (DỮ LIỆU MYSQL).",
+            f"Lý do: {empty_reason}.",
+            "Không được bịa sản phẩm. Hãy thông báo rõ ràng và gợi ý nới tiêu chí nếu hợp lý.",
+        ]
+        if available_categories:
+            empty_lines.append(
+                "Danh mục đang có hàng: " + ", ".join(available_categories)
+            )
+        blocks.append("\n".join(empty_lines))
 
     # 2. Product Detail
     if product_detail:

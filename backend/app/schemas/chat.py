@@ -21,6 +21,14 @@ class IntentEnum(str, Enum):
     GENERAL = "GENERAL"
 
 
+class PriceUnitEnum(str, Enum):
+    """Whether price bounds apply to package price or per-kilogram unit price."""
+
+    PACKAGE = "PACKAGE"
+    PER_KG = "PER_KG"
+    UNKNOWN = "UNKNOWN"
+
+
 class IntentExtractionResult(BaseModel):
     """Structured extraction output from LLM for routing."""
 
@@ -52,6 +60,10 @@ class IntentExtractionResult(BaseModel):
         default=None,
         description="Maximum budget / price constraint in VND."
     )
+    price_unit: PriceUnitEnum = Field(
+        default=PriceUnitEnum.PACKAGE,
+        description="Whether min/max price apply to package price or per-kg unit price.",
+    )
     in_stock_only: bool = Field(
         default=True,
         description="Whether only currently available products should be matched."
@@ -59,6 +71,10 @@ class IntentExtractionResult(BaseModel):
     preferences: Optional[str] = Field(
         default=None,
         description="Soft taste or sensory preferences (e.g., ít đắng, thơm nhẹ, quà tặng bố mẹ)."
+    )
+    usage: Optional[str] = Field(
+        default=None,
+        description="Intended use case (e.g., pha phin, espresso, ăn vặt, làm bánh).",
     )
     product_names: List[str] = Field(
         default_factory=list,

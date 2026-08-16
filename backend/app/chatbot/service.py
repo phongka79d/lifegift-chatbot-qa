@@ -1,6 +1,7 @@
 """Core Chatbot Service orchestrating intent routing, grounding, and response generation."""
 
 import logging
+import re
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -20,6 +21,7 @@ from backend.app.schemas.chat import (
     IntentEnum,
     IntentExtractionResult,
     OrderStatusResponse,
+    PriceUnitEnum,
 )
 from backend.app.schemas.product import ProductCard, ProductDetailResponse, ProductSearchParams
 from backend.app.services.recommendation_service import RecommendationService
@@ -77,7 +79,8 @@ class ChatbotService:
         metadata: Dict[str, Any] = {"intent": intent.value}
 
         if intent == IntentEnum.PRODUCT_SEARCH:
-            products, context_str = await self._handle_product_search(extracted)
+            products, context_str, search_meta = await self._handle_product_search(extracted)
+            metadata.update(search_meta)
             metadata["tool"] = "search_products"
         elif intent == IntentEnum.PRODUCT_RECOMMENDATION:
             products, context_str, rec_meta = await self._handle_recommendation(extracted)
@@ -104,12 +107,18 @@ class ChatbotService:
             context_str = "Khách hàng gửi câu hỏi chung hoặc lời chào. Hãy chào đón nồng nhiệt và giới thiệu các nhóm nông sản thế mạnh của LifeGift (Cà phê Tây Nguyên, Trà cổ thụ Hà Giang, Mật ong rừng U Minh, Hạt dinh dưỡng, Nông sản sấy và Hộp quà Tết)."
             metadata["tool"] = "general"
 
-        # 6. Generate final conversational answer
+        # 6. Generate final conversational answer (grounded; fall back if LLM ignores product list)
         answer = await self._generate_answer(
             user_message=request.message,
             context=context_str,
             history=history,
         )
+        if products and self._answer_ignores_products(answer, products):
+            logger.warning(
+                "LLM answer ignored %d grounded products; using deterministic formatter.",
+                len(products),
+            )
+            answer = self._format_deterministic_fallback(request.message, context_str)
 
         # 7. Persist assistant message
         self.chat_repo.save_message(
@@ -132,48 +141,138 @@ class ChatbotService:
 
     async def _handle_product_search(
         self, extracted: IntentExtractionResult
-    ) -> Tuple[List[ProductCard], str]:
-        params = ProductSearchParams(
-            query=extracted.query,
-            category=extracted.category,
-            brand=extracted.brand,
-            origin=extracted.origin,
-            min_price=extracted.min_price,
-            max_price=extracted.max_price,
-            in_stock=extracted.in_stock_only,
-            limit=5,
+    ) -> Tuple[List[ProductCard], str, Dict[str, Any]]:
+        price_unit = (
+            extracted.price_unit.value
+            if getattr(extracted, "price_unit", None)
+            else PriceUnitEnum.PACKAGE.value
         )
-        products = self.product_repo.search_products(params)
-        context = build_chat_context(products=products)
-        return products, context
+        # Progressive relaxation: only drop free-text query / stock-only — never hard filters
+        attempts = [
+            ProductSearchParams(
+                query=extracted.query,
+                category=extracted.category,
+                brand=extracted.brand,
+                origin=extracted.origin,
+                min_price=extracted.min_price,
+                max_price=extracted.max_price,
+                price_unit=price_unit,
+                in_stock=extracted.in_stock_only,
+                limit=5,
+            ),
+            ProductSearchParams(
+                query=None,
+                category=extracted.category,
+                brand=extracted.brand,
+                origin=extracted.origin,
+                min_price=extracted.min_price,
+                max_price=extracted.max_price,
+                price_unit=price_unit,
+                in_stock=extracted.in_stock_only,
+                limit=5,
+            ),
+            ProductSearchParams(
+                query=None,
+                category=extracted.category,
+                brand=extracted.brand,
+                origin=extracted.origin,
+                min_price=extracted.min_price,
+                max_price=extracted.max_price,
+                price_unit=price_unit,
+                in_stock=False,
+                limit=5,
+            ),
+        ]
+
+        result = None
+        for params in attempts:
+            result = self.product_repo.search_products_detailed(params)
+            if result.products:
+                break
+            # Unknown category will never recover by relaxing query/stock
+            if result.empty_reason == "UNKNOWN_CATEGORY":
+                break
+
+        assert result is not None
+        products = result.products[:5]
+        meta = {
+            "applied_filters": result.applied_filters,
+            "empty_reason": result.empty_reason,
+            "price_unit": price_unit,
+            "available_categories": result.available_categories,
+        }
+
+        context = build_chat_context(
+            products=products or None,
+            applied_filters=result.applied_filters,
+            empty_reason=result.empty_reason,
+            available_categories=result.available_categories or None,
+        )
+        if products:
+            if price_unit == PriceUnitEnum.PER_KG.value:
+                context += (
+                    "\n\nLƯU Ý CHO TRỢ LÝ: Người dùng hỏi theo đồng/kg. "
+                    "Chỉ nêu ước tính /kg khi dòng sản phẩm có price_per_kg; luôn nêu giá gói."
+                )
+            else:
+                context += (
+                    "\n\nLƯU Ý CHO TRỢ LÝ: Giá hiển thị là giá gói/hộp catalog (package price)."
+                )
+        return products, context, meta
 
     async def _handle_recommendation(
         self, extracted: IntentExtractionResult
     ) -> Tuple[List[ProductCard], str, Dict[str, Any]]:
+        # Prefer usage/preferences text for soft ranking
+        soft = extracted.preferences or extracted.usage or extracted.query
+        price_unit = (
+            extracted.price_unit.value
+            if getattr(extracted, "price_unit", None)
+            else PriceUnitEnum.PACKAGE.value
+        )
         products, semantic_used = self.rec_service.recommend(
             category=extracted.category,
             origin=extracted.origin,
             brand=extracted.brand,
             min_price=extracted.min_price,
             max_price=extracted.max_price,
-            preferences=extracted.preferences or extracted.query,
+            price_unit=price_unit,
+            preferences=soft,
             in_stock=extracted.in_stock_only,
             top_k=3,
         )
         if not products:
-            context = (
-                "Không có sản phẩm nào trong kho đáp ứng đầy đủ tiêu chí (danh mục, ngân sách, tình trạng còn hàng). "
-                "Hãy thông báo rõ ràng cho khách và gợi ý nới lỏng ngân sách hoặc tham khảo danh mục khác; tuyệt đối không gợi ý sản phẩm ngoài danh sách cung cấp."
+            facets = self.product_repo.list_available_categories()
+            context = build_chat_context(
+                empty_reason="NO_MATCH_FILTERS",
+                available_categories=facets,
+                applied_filters={
+                    "category": extracted.category,
+                    "origin": extracted.origin,
+                    "brand": extracted.brand,
+                    "min_price": extracted.min_price,
+                    "max_price": extracted.max_price,
+                    "price_unit": price_unit,
+                    "usage": soft,
+                },
             )
-            return [], context, {"semantic_used": semantic_used, "no_match": True}
+            return [], context, {
+                "semantic_used": semantic_used,
+                "no_match": True,
+                "price_unit": price_unit,
+            }
 
         context = build_chat_context(products=products)
-        if not semantic_used and (extracted.preferences or extracted.query):
+        if not semantic_used and soft:
             context += (
                 "\n\nLƯU Ý CHO TRỢ LÝ: Hệ thống gợi ý theo ngữ nghĩa (Qdrant) hiện không khả dụng, "
                 "danh sách trên chỉ được lọc theo tiêu chí cứng từ MySQL. Hãy nêu rõ rằng việc so khớp sở thích bị giới hạn và không tự suy đoán thêm hương vị."
             )
-        return products, context, {"semantic_used": semantic_used, "no_match": False}
+        return products, context, {
+            "semantic_used": semantic_used,
+            "no_match": False,
+            "price_unit": price_unit,
+        }
 
     async def _handle_product_detail(
         self, extracted: IntentExtractionResult
@@ -186,11 +285,21 @@ class ChatbotService:
         )
         resolved = self.product_repo.resolve_by_name(target_name)
         if not resolved:
-            # Try searching by query
+            # Try searching by query — reject if a digit-code token (e.g. st25) is missing
             searched = self.product_repo.search_products(
                 ProductSearchParams(query=target_name, limit=1)
             )
-            resolved = searched[0] if searched else None
+            if searched:
+                hit = searched[0]
+                extra = [
+                    t
+                    for t in re.findall(r"[a-z0-9]+", (target_name or "").lower())
+                    if t not in (hit.name or "").lower()
+                ]
+                if any(any(ch.isdigit() for ch in t) for t in extra):
+                    resolved = None
+                else:
+                    resolved = hit
 
         if not resolved:
             return (
@@ -216,20 +325,18 @@ class ChatbotService:
     async def _handle_product_compare(
         self, extracted: IntentExtractionResult
     ) -> Tuple[List[ProductCard], str]:
-        names = extracted.product_names
-        if len(names) < 2 and extracted.query:
-            # Try to see if query mentions multiple products
-            for kw in ["arabica", "robusta", "shan tuyết", "oolong", "mật ong", "hạt điều", "mắc ca"]:
-                if kw in extracted.query.lower() and not any(kw in n.lower() for n in names):
-                    names.append(kw)
+        # Only use names the extractor provided — never invent SKUs from keyword lists
+        names = list(extracted.product_names or [])
 
         resolved_cards: List[ProductCard] = []
         detail_list: List[ProductDetailResponse] = []
         missing_names: List[str] = []
+        seen_ids = set()
 
         for name in names:
             card = self.product_repo.resolve_by_name(name)
-            if card:
+            if card and card.id not in seen_ids:
+                seen_ids.add(card.id)
                 resolved_cards.append(card)
                 d = self.product_repo.get_by_id(card.id)
                 if d:
@@ -237,11 +344,23 @@ class ChatbotService:
             else:
                 missing_names.append(name)
 
-        if not resolved_cards:
-            return (
-                [],
-                "Không xác định được sản phẩm cụ thể để so sánh. Hãy yêu cầu khách hàng nêu rõ tên 2 sản phẩm cần so sánh.",
+        if len(resolved_cards) < 2:
+            # Same constrained search as product search (category/query/price_unit/min/max)
+            products, search_context, _meta = await self._handle_product_search(extracted)
+            notice = (
+                "Không đủ hai tên sản phẩm (SKU) resolve được để so sánh trực tiếp. "
+                "So sánh theo tên cần ít nhất hai sản phẩm cụ thể trong catalog; "
+                "không được bịa tên. Dưới đây là kết quả tìm kiếm theo loại/giá/xuất xứ "
+                "trích từ câu hỏi."
             )
+            if missing_names:
+                notice += f" Không tìm thấy: {', '.join(missing_names)}."
+            elif names:
+                notice += " Các tên nêu ra chưa khớp đủ hai SKU."
+            else:
+                notice += " Câu hỏi chưa nêu hai tên sản phẩm cụ thể."
+            context = notice + "\n\n" + search_context
+            return products, context
 
         context = build_chat_context(comparison_products=detail_list)
         if missing_names:
@@ -310,6 +429,34 @@ class ChatbotService:
         context = build_chat_context(order=order_data)
         return [], context
 
+    def _answer_ignores_products(self, answer: str, products: List[ProductCard]) -> bool:
+        """Detect ungrounded answers that claim no data despite non-empty product results."""
+        if not answer or not products:
+            return False
+        lower = answer.lower()
+        denial_markers = (
+            "chưa có dữ liệu",
+            "chưa có thông tin",
+            "không có dữ liệu",
+            "chưa có sản phẩm",
+            "không có sản phẩm",
+            "chưa có thông tin chính xác",
+            "chưa có dữ liệu cụ thể",
+            "vui lòng liên hệ trực tiếp",
+        )
+        if not any(m in lower for m in denial_markers):
+            return False
+        # If a product is clearly named (full name or a distinctive multi-char token), treat as grounded
+        for p in products:
+            name_l = (p.name or "").lower()
+            if name_l and name_l in lower:
+                return False
+            # Use a mid-length token from the product name (skip very short generic words)
+            for token in name_l.replace("-", " ").split():
+                if len(token) >= 5 and token in lower:
+                    return False
+        return True
+
     async def _generate_answer(
         self, user_message: str, context: str, history: List[Any]
     ) -> str:
@@ -350,13 +497,21 @@ class ChatbotService:
             if limited:
                 answer += "\n\nLưu ý: hiện tại hệ thống chưa thể so khớp sở thích theo ngữ nghĩa nên danh sách trên được lọc theo tiêu chí cứng (ngân sách, danh mục, tồn kho)."
             return answer
-        if "không có sản phẩm nào trong kho đáp ứng" in context.lower() or (
-            "Không có sản phẩm nào trong kho" in context
+        if (
+            "KHÔNG CÓ SẢN PHẨM KHỚP" in context
+            or "không có sản phẩm nào trong kho đáp ứng" in context.lower()
+            or "Không có sản phẩm nào trong kho" in context
         ):
-            return (
-                "Dạ, hiện tại LifeGift chưa có sản phẩm nào trong kho đáp ứng đầy đủ tiêu chí bạn đưa ra. "
-                "Bạn có thể nới lỏng ngân sách hoặc tham khảo thêm các danh mục nông sản khác của LifeGift nhé!"
+            answer = (
+                "Dạ, hiện tại LifeGift chưa có sản phẩm nào trong kho khớp đúng bộ lọc bạn đưa ra. "
+                "Bạn có thể nới lỏng ngân sách, danh mục hoặc tiêu chí khác nhé!"
             )
+            # Surface available categories from structured empty context when present
+            for line in context.splitlines():
+                if line.strip().lower().startswith("danh mục đang có hàng"):
+                    answer += f"\n\n{line.strip()}"
+                    break
+            return answer
         elif "THÔNG TIN CHI TIẾT SẢN PHẨM" in context:
             return (
                 "Dạ, LifeGift xin gửi thông tin chi tiết về sản phẩm:\n\n"
