@@ -250,6 +250,28 @@ def infer_origin_from_message(message: str) -> Optional[str]:
     return None
 
 
+_REVIEW_FILLER_RE = re.compile(
+    r"\b(có|sản phẩm|san pham|nào|nao|những|nhung|các|cac|"
+    r"review|đánh giá|danh gia|nhận xét|nhan xet|phản hồi|phan hoi|"
+    r"cho|tôi|toi|mình|minh|xem|của|cua|với|voi|về|ve|là|la|"
+    r"được|duoc|không|khong|hãy|hay|giúp|giup|tìm|tim)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_review_theme(message: str) -> Optional[str]:
+    """Keep distinctive review-content words; drop list/review filler.
+
+    Example: 'Có sản phẩm nào có review đúng với mô tả không?' → 'đúng mô tả'
+    """
+    cleaned = _REVIEW_FILLER_RE.sub(" ", (message or "").lower())
+    cleaned = re.sub(r"[?!.,;:]+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if len(cleaned) < 3:
+        return None
+    return cleaned
+
+
 def split_compare_names(message: str) -> list[str]:
     """Split user-stated compare names on và/hay/với/vs. Do not invent catalog SKUs."""
     text = (message or "").strip()
@@ -330,7 +352,8 @@ class FallbackStructuredLLM:
         if "đánh giá" in msg_lower or "review" in msg_lower or "phản hồi" in msg_lower or "nhận xét" in msg_lower:
             return {
                 "intent": "PRODUCT_REVIEW",
-                "query": msg,
+                "query": extract_review_theme(msg),
+                "category": infer_kind_from_message(msg),
             }
 
         # 6. Specific stock or detail

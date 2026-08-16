@@ -13,6 +13,7 @@ from backend.app.chatbot.llm import (
     detect_price_unit,
     infer_kind_from_message,
     infer_origin_from_message,
+    extract_review_theme,
     split_compare_names,
 )
 from backend.app.chatbot.prompts import INTENT_EXTRACTION_SYSTEM_PROMPT
@@ -289,6 +290,15 @@ def normalize_extraction(message: str, result: IntentExtractionResult) -> Intent
     if data.get("intent") in (IntentEnum.PRODUCT_COMPARE.value, IntentEnum.PRODUCT_COMPARE):
         if not data.get("product_names"):
             data["product_names"] = split_compare_names(message)
+
+    if data.get("intent") in (IntentEnum.PRODUCT_REVIEW.value, IntentEnum.PRODUCT_REVIEW):
+        theme = extract_review_theme(message)
+        raw_query = (data.get("query") or "").strip()
+        if not raw_query or raw_query.lower() == message.strip().lower():
+            data["query"] = theme
+        leftover = (data.get("query") or "").strip().lower()
+        if leftover in {"đánh giá", "danh gia", "review", "reviews", "nhận xét", "nhan xet", "phản hồi", "phan hoi"}:
+            data["query"] = None
 
     # Re-sanitize query after category may have been filled
     data["query"] = _sanitize_query(data.get("query"), data.get("category"))

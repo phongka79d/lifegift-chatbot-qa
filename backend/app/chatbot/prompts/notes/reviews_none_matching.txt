@@ -1,0 +1,1 @@
+No approved reviews matched the theme '{theme}'. Do not invent reviews. Say honestly that no review text matched, and invite the customer to name a product or browse categories that do have reviews.

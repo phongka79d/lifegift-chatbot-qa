@@ -65,3 +65,70 @@ class ReviewRepository:
             "review_count": total_count,
             "reviews": reviews_list,
         }
+
+    def list_reviewed_products(
+        self,
+        review_text: Optional[str] = None,
+        category_id: Optional[int] = None,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Active products that have APPROVED reviews, optionally matching review text."""
+        bounded_limit = max(1, min(limit, 10))
+        conditions = [
+            "p.status = 'ACTIVE'",
+            "r.status = 'APPROVED'",
+        ]
+        params: Dict[str, Any] = {"limit": bounded_limit}
+        if category_id is not None:
+            conditions.append("p.category_id = :category_id")
+            params["category_id"] = category_id
+        theme = (review_text or "").strip()
+        if theme:
+            conditions.append(
+                "(LOWER(r.title) LIKE :theme OR LOWER(r.content) LIKE :theme)"
+            )
+            params["theme"] = f"%{theme.lower()}%"
+
+        where_sql = " AND ".join(conditions)
+        id_sql = f"""
+            SELECT p.id AS product_id,
+                   COUNT(r.id) AS review_count,
+                   AVG(r.rating) AS avg_rating
+            FROM products p
+            INNER JOIN reviews r ON r.product_id = p.id
+            WHERE {where_sql}
+            GROUP BY p.id
+            ORDER BY avg_rating DESC, review_count DESC, p.id ASC
+            LIMIT :limit
+        """
+        id_rows = self.session.execute(text(id_sql), params).fetchall()
+        results: List[Dict[str, Any]] = []
+        for row in id_rows:
+            sample_params: Dict[str, Any] = {"product_id": int(row.product_id)}
+            sample_where = "product_id = :product_id AND status = 'APPROVED'"
+            if theme:
+                sample_where += " AND (LOWER(title) LIKE :theme OR LOWER(content) LIKE :theme)"
+                sample_params["theme"] = params["theme"]
+            sample = self.session.execute(
+                text(
+                    f"""
+                    SELECT rating, title, content
+                    FROM reviews
+                    WHERE {sample_where}
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                ),
+                sample_params,
+            ).fetchone()
+            results.append(
+                {
+                    "product_id": int(row.product_id),
+                    "review_count": int(row.review_count),
+                    "avg_rating": round(float(row.avg_rating or 0), 2),
+                    "sample_rating": int(sample.rating) if sample else None,
+                    "sample_title": sample.title if sample else None,
+                    "sample_content": sample.content if sample else None,
+                }
+            )
+        return results

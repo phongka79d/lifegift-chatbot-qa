@@ -7,7 +7,7 @@ Analyze the user's Vietnamese message and extract structured JSON that matches t
 - PRODUCT_RECOMMENDATION: advice by use-case or taste (pha phin, espresso, ăn vặt, làm bánh, quà…) — may include a budget.
 - PRODUCT_COMPARE: compare two or more products (prefer names). Kind/price-only compare without two SKU names may still be PRODUCT_COMPARE (system falls back to search).
 - KNOWLEDGE: pure education — how-to, farming knowledge, authenticity tips — NOT a sales list and NOT info about a specific catalog line.
-- PRODUCT_REVIEW: customer ratings/reviews.
+- PRODUCT_REVIEW: customer ratings/reviews of a named product, OR a discovery question about which products have reviews / reviews mentioning a theme ("sản phẩm nào có đánh giá", "review đúng mô tả").
 - ORDER_STATUS: order lookup (code ORD-...).
 - GENERAL: greeting, thanks, small talk.
 
@@ -20,7 +20,7 @@ Routing boundaries (keep these exact rules):
 
 2. Fields:
 - intent
-- query: short product keyword (robusta, arabica…); not the full sentence; do not embed "đồng/kg"
+- query: short product keyword (robusta, arabica…) or, for PRODUCT_REVIEW discovery, a short review-theme phrase (e.g. "đúng mô tả"); not the full sentence; do not embed "đồng/kg"
 - category, brand, origin — category is a product kind (cà phê, trà, hạt, gạo, đậu, trái cây, rau củ, mật ong, quà…), never the generic label "nông sản"
 - min_price / max_price: integer VND, no thousand separators. "100.000"→100000; "dưới 150k"→max=150000; "từ 100k đến 200k"→min=100000,max=200000; "hai trăm nghìn"→200000; "từ 100k trở xuống"→max=100000
 - price_unit: PACKAGE (default) | PER_KG (when user says /kg, đồng/kg, một ký) | UNKNOWN

@@ -381,18 +381,62 @@ class ChatbotService:
         target_name = (
             extracted.product_names[0]
             if extracted.product_names
-            else (extracted.query or "")
+            else None
         )
-        resolved = self.product_repo.resolve_by_name(target_name)
-        if not resolved:
-            return [], render_note("review_not_found", target_name=target_name)
+        resolved = self.product_repo.resolve_by_name(target_name) if target_name else None
+        if not resolved and extracted.query:
+            # Only treat query as a product name when it resolves to a real SKU
+            maybe = self.product_repo.resolve_by_name(extracted.query)
+            if maybe:
+                resolved = maybe
 
-        reviews_data = self.review_repo.get_product_reviews(resolved.id, limit=5)
-        context = build_chat_context(
-            products=[resolved],
-            reviews=reviews_data,
+        if resolved:
+            reviews_data = self.review_repo.get_product_reviews(resolved.id, limit=5)
+            context = build_chat_context(
+                products=[resolved],
+                reviews=reviews_data,
+            )
+            return [resolved], context
+
+        category_id = None
+        if extracted.category:
+            category_id, cat_ok = self.product_repo.resolve_category_id(extracted.category)
+            if not cat_ok:
+                category_id = None
+
+        hits = self.review_repo.list_reviewed_products(
+            review_text=extracted.query,
+            category_id=category_id,
+            limit=5,
         )
-        return [resolved], context
+        if not hits:
+            return [], render_note(
+                "reviews_none_matching",
+                theme=extracted.query or extracted.category or "review",
+            )
+
+        cards = self.product_repo.get_by_ids([h["product_id"] for h in hits])
+        by_id = {c.id: c for c in cards}
+        ordered: List[ProductCard] = []
+        for hit in hits:
+            card = by_id.get(hit["product_id"])
+            if not card:
+                continue
+            title = hit.get("sample_title") or ""
+            snippet = (hit.get("sample_content") or "")[:120]
+            rating = hit.get("sample_rating")
+            star = f"{rating}★ " if rating is not None else ""
+            card.reason = f'{star}"{title}" — {snippet}'.strip(" —")
+            ordered.append(card)
+
+        first_reviews = self.review_repo.get_product_reviews(ordered[0].id, limit=3)
+        context = build_chat_context(products=ordered, reviews=first_reviews)
+        theme_clause = f" matching '{extracted.query}'" if extracted.query else ""
+        context += (
+            f"\n\n{LABELS['ASSISTANT_NOTE']} "
+            + render_note("review_discovery", theme_clause=theme_clause)
+        )
+        return ordered, context
 
     async def _handle_order_status(
         self, extracted: IntentExtractionResult, user_id: Optional[int]

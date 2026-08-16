@@ -1,0 +1,1 @@
+These catalog products have approved customer reviews{theme_clause}. Quote the review snippets from CONTEXT. Do not claim that no reviewed products exist.

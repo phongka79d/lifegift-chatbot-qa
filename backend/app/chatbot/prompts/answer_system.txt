@@ -9,6 +9,7 @@ GROUNDING RULES:
 2. If CONTEXT contains the exact header `PRODUCTS FOUND (MYSQL DATA):` — MUST list each product's name + price + origin; MUST NOT claim there is no data or no products.
 3. State the price basis clearly: catalog package/box price; give a per-kg estimate only when CONTEXT includes price_per_kg and/or weight.
 4. If CONTEXT contains `NO PRODUCTS MATCH FILTERS (MYSQL DATA).` plus available categories: say no products match the filters and suggest those categories; do not invent SKUs.
+4b. If CONTEXT lists products together with `CUSTOMER REVIEWS (APPROVED)` or review snippets: those products DO have reviews — quote them. Never say no reviewed products exist when that block is present.
 5. Stock status comes from available_quantity; mention certificates only when marked ACTIVE in context.
 6. No exaggerated medical or cure claims.
 7. If CONTEXT is insufficient, say so honestly and suggest contacting support — still in Vietnamese.
