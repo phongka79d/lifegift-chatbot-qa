@@ -4,6 +4,23 @@ import type { ChatMessage } from '../../types';
 
 import { MessageItem } from './MessageItem';
 import { QuickPrompts } from './QuickPrompts';
+import { ProductRail } from '../Product/ProductRail';
+
+/** Card skeletons only when the last user turn looks like a catalog retrieve. */
+function looksLikeProductRetrieval(text?: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  const educational = /(cách |loi ich|lợi ích|hướng dẫn|bảo quản|nhận biết|tiêu chuẩn|vietgap)/i.test(t);
+  const catalog =
+    /(sản phẩm|san pham|review|đánh giá|danh gia|tìm|tim |gợi ý|goi y|so sánh|so sanh|giá |gia |mua |còn hàng|cà phê|ca phe|trà|chè|hạt|gạo|quà|đặc sản|nông sản|sao|macca|arabica|robusta)/i.test(
+      t
+    );
+  if (!catalog) return false;
+  if (educational && !/(sản phẩm|san pham|tìm|tim |gợi ý|mua |giá |review|đánh giá)/i.test(t)) {
+    return false;
+  }
+  return true;
+}
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -21,6 +38,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   onShowToast,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content;
+  const showProductSkeleton = isLoading && looksLikeProductRetrieval(lastUserText);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,19 +58,12 @@ export const MessageList: React.FC<MessageListProps> = ({
             </div>
             <div className="message-content-wrapper">
               <div className="message-header-info">
-                <span className="message-author-name">Trợ Lý LifeGift</span>
+                <span className="message-author-name">LifeGift</span>
               </div>
               <div className="message-bubble">
                 <p>
-                  Xin chào! Em là <strong>Trợ lý Nông sản LifeGift</strong>. Em được kết nối trực tiếp với cơ sở dữ liệu tồn kho, giá bán và hệ thống kiểm định chất lượng nông sản Việt Nam.
+                  Xin chào. Tôi tư vấn nông sản LifeGift theo giá, tồn kho và chứng chỉ đang có.
                 </p>
-                <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-                  <li>Tra cứu giá bán và tồn kho khả dụng thời gian thực.</li>
-                  <li>Tư vấn sản phẩm chuẩn theo khẩu vị (thơm nhẹ, ít đắng, thanh nhiệt...).</li>
-                  <li>So sánh chi tiết đặc tính, nguồn gốc giữa các dòng đặc sản.</li>
-                  <li>Cung cấp kiến thức nông sản sạch, hướng dẫn pha chế và chứng chỉ OCOP/VietGAP.</li>
-                  <li>Tra cứu trạng thái vận chuyển và lịch sử đơn hàng của bạn.</li>
-                </ul>
               </div>
 
               {/* Quick Prompts on initial view */}
@@ -81,18 +93,21 @@ export const MessageList: React.FC<MessageListProps> = ({
             </div>
             <div className="message-content-wrapper">
               <div className="message-header-info">
-                <span className="message-author-name">Trợ Lý LifeGift</span>
-                <span className="message-time">Đang tra cứu dữ liệu...</span>
+                <span className="message-author-name">LifeGift</span>
+                <span className="message-time">Đang tìm...</span>
               </div>
-              <div className="message-bubble" style={{ minWidth: 280, padding: 18 }}>
+              <div className="message-bubble is-skeleton">
                 <div className="skeleton-box skeleton-text-line medium" />
                 <div className="skeleton-box skeleton-text-line long" />
-                <div className="skeleton-box skeleton-text-line short" style={{ marginBottom: 0 }} />
+                <div className="skeleton-box skeleton-text-line short" />
               </div>
-              <div className="skeleton-cards-grid">
-                <div className="skeleton-box skeleton-card" />
-                <div className="skeleton-box skeleton-card" />
-              </div>
+              {showProductSkeleton && (
+                <ProductRail>
+                  <div className="skeleton-box skeleton-card" role="listitem" />
+                  <div className="skeleton-box skeleton-card" role="listitem" />
+                  <div className="skeleton-box skeleton-card" role="listitem" />
+                </ProductRail>
+              )}
             </div>
           </div>
         )}

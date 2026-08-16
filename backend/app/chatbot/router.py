@@ -14,6 +14,9 @@ from backend.app.chatbot.llm import (
     infer_kind_from_message,
     infer_origin_from_message,
     extract_review_theme,
+    is_review_quality_theme,
+    message_has_review_intent,
+    parse_review_min_rating,
     split_compare_names,
 )
 from backend.app.chatbot.prompts import INTENT_EXTRACTION_SYSTEM_PROMPT
@@ -291,14 +294,43 @@ def normalize_extraction(message: str, result: IntentExtractionResult) -> Intent
         if not data.get("product_names"):
             data["product_names"] = split_compare_names(message)
 
+    if message_has_review_intent(message):
+        data["intent"] = IntentEnum.PRODUCT_REVIEW.value
+
     if data.get("intent") in (IntentEnum.PRODUCT_REVIEW.value, IntentEnum.PRODUCT_REVIEW):
         theme = extract_review_theme(message)
         raw_query = (data.get("query") or "").strip()
         if not raw_query or raw_query.lower() == message.strip().lower():
             data["query"] = theme
         leftover = (data.get("query") or "").strip().lower()
-        if leftover in {"đánh giá", "danh gia", "review", "reviews", "nhận xét", "nhan xet", "phản hồi", "phan hoi"}:
+        min_rating = parse_review_min_rating(
+            message, leftover, theme, data.get("preferences")
+        )
+        quality_or_filler = leftover in {
+            "đánh giá",
+            "danh gia",
+            "review",
+            "reviews",
+            "nhận xét",
+            "nhan xet",
+            "phản hồi",
+            "phan hoi",
+        } or is_review_quality_theme(leftover) or is_review_quality_theme(theme)
+        # Rating floors ("trên 5 sao") and quality adjectives must never become
+        # review-text LIKE queries — parse the original message, not only leftover.
+        if min_rating is not None or quality_or_filler:
             data["query"] = None
+            if not data.get("preferences") and (
+                min_rating is not None or is_review_quality_theme(leftover) or is_review_quality_theme(theme)
+            ):
+                data["preferences"] = leftover or theme or "tốt"
+        # Drop product_names that are just rating/quality phrasing, not SKUs
+        names = [n for n in (data.get("product_names") or []) if n]
+        data["product_names"] = [
+            n
+            for n in names
+            if parse_review_min_rating(n) is None and not is_review_quality_theme(n)
+        ]
 
     # Re-sanitize query after category may have been filled
     data["query"] = _sanitize_query(data.get("query"), data.get("category"))

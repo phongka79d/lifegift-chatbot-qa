@@ -259,6 +259,31 @@ _REVIEW_FILLER_RE = re.compile(
 )
 
 
+_REVIEW_QUALITY_THEMES = frozenset(
+    {
+        "tốt",
+        "tot",
+        "hay",
+        "tích cực",
+        "tich cuc",
+        "tốt nhất",
+        "tot nhat",
+        "5 sao",
+        "4 sao",
+        "cao",
+        "trên 5 sao",
+        "tren 5 sao",
+        "trên 4 sao",
+        "tren 4 sao",
+    }
+)
+
+_STAR_RATING_RE = re.compile(
+    r"(?:trên|hon|hơn|lớn hơn|>|từ|>=)?\s*([1-5])\s*sao",
+    re.IGNORECASE,
+)
+
+
 def extract_review_theme(message: str) -> Optional[str]:
     """Keep distinctive review-content words; drop list/review filler.
 
@@ -270,6 +295,51 @@ def extract_review_theme(message: str) -> Optional[str]:
     if len(cleaned) < 3:
         return None
     return cleaned
+
+
+def parse_review_min_rating(*texts: Optional[str]) -> Optional[float]:
+    """Parse a star-rating floor from Vietnamese review language.
+
+    Catalog ratings are 1–5, so 'trên 5 sao' means 5-star / top-rated.
+    Bare quality adjectives (tốt/hay) map to 4.0.
+    """
+    blob = " ".join(t for t in texts if t).strip().lower()
+    if not blob:
+        return None
+    match = _STAR_RATING_RE.search(blob)
+    if match:
+        stars = int(match.group(1))
+        if re.search(r"(trên|hon|hơn|lớn hơn|>)\s*" + match.group(1) + r"\s*sao", blob):
+            return 5.0 if stars >= 5 else float(stars)
+        return min(5.0, float(stars))
+    cleaned = extract_review_theme(blob) or blob
+    if cleaned in _REVIEW_QUALITY_THEMES or any(
+        token == cleaned or cleaned.endswith(token)
+        for token in ("tốt", "tot", "hay", "tích cực", "tốt nhất")
+    ):
+        return 4.0
+    return None
+
+
+def is_review_quality_theme(theme: Optional[str]) -> bool:
+    """True when leftover theme is a rating-quality phrase, not a product name."""
+    if not theme:
+        return False
+    text = theme.strip().lower()
+    if text in _REVIEW_QUALITY_THEMES:
+        return True
+    if parse_review_min_rating(text) is not None:
+        return True
+    cleaned = extract_review_theme(text) or text
+    return cleaned in _REVIEW_QUALITY_THEMES
+
+
+def message_has_review_intent(message: str) -> bool:
+    msg = (message or "").lower()
+    return any(
+        tok in msg
+        for tok in ("đánh giá", "danh gia", "review", "nhận xét", "nhan xet", "phản hồi", "phan hoi")
+    )
 
 
 def split_compare_names(message: str) -> list[str]:

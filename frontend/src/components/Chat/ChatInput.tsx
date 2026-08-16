@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { SendHorizonal, Loader2, Sparkles } from 'lucide-react';
+import { SendHorizonal, Loader2 } from 'lucide-react';
 
 
 interface ChatInputProps {
@@ -41,7 +41,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Nhập câu hỏi nông sản (ví dụ: Cà phê ít đắng dưới 200k, so sánh Arabica & Robusta...)"
+          placeholder="Hỏi về cà phê, trà, hạt, giá..."
           className="chat-textarea"
           rows={1}
           disabled={isLoading}
@@ -60,15 +60,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           )}
         </button>
       </div>
-      <div style={{ maxWidth: 920, margin: '6px auto 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-subtle)', padding: '0 8px' }}>
-        <span>
-          <Sparkles size={11} style={{ display: 'inline', marginRight: 4 }} />
-          Dữ liệu kết nối trực tiếp MySQL 8.0 &amp; Qdrant Vector RAG
-        </span>
-        <span>
-          Nhấn <kbd style={{ padding: '1px 5px', background: 'var(--bg-subtle)', borderRadius: 4, border: '1px solid var(--border-subtle)', fontWeight: 600 }}>Enter ↵</kbd> để gửi, <kbd style={{ padding: '1px 5px', background: 'var(--bg-subtle)', borderRadius: 4, border: '1px solid var(--border-subtle)', fontWeight: 600 }}>Shift+Enter</kbd> xuống dòng
-        </span>
-      </div>
+      <p className="input-hint">Enter để gửi · Shift+Enter xuống dòng</p>
     </footer>
   );
 };

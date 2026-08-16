@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, MessageSquarePlus, Sparkles } from 'lucide-react';
+import { MessageSquarePlus } from 'lucide-react';
 import type { ProductCard as ProductCardType } from '../../types';
 
 import { formatVND } from '../../services/api';
@@ -12,9 +12,6 @@ interface ProductCardProps {
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&auto=format&fit=crop&q=80';
 
-/**
- * Enhanced Product Card displaying pricing, stock, origin, and quick actions.
- */
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onOpenDetail,
@@ -37,34 +34,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           loading="lazy"
           onError={() => setImgSrc(FALLBACK_IMAGE)}
         />
-        {discountPercent !== null && (
-          <span className="badge-discount">-{discountPercent}%</span>
-        )}
-        <span
-          className={`badge-stock ${product.is_available ? 'in-stock' : 'out-stock'}`}
-        >
-          {product.is_available
-            ? `Còn ${product.available_quantity} sp`
-            : 'Hết hàng'}
-        </span>
       </div>
 
       <div className="product-card-body">
-        <div className="product-card-origin">
-          <MapPin size={12} style={{ display: 'inline', marginRight: 3 }} />
-          {product.origin || 'Việt Nam'}
+        <div className="product-card-meta">
+          <span className="product-card-origin">{product.origin || 'Việt Nam'}</span>
+          <span className={product.is_available ? 'stock-ok' : 'stock-out'}>
+            {product.is_available ? `Còn ${product.available_quantity}` : 'Hết hàng'}
+          </span>
         </div>
 
         <h3 className="product-card-title" title={product.name}>
           {product.name}
         </h3>
 
-        {product.reason && (
-          <div className="product-card-reason">
-            <Sparkles size={12} style={{ display: 'inline', marginRight: 4 }} />
-            {product.reason}
-          </div>
-        )}
+        <p className="product-card-reason">{product.reason || '\u00a0'}</p>
 
         <div className="product-card-pricing-row">
           <span className="product-effective-price">
@@ -75,6 +59,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {formatVND(product.price)}
             </span>
           )}
+          {discountPercent !== null && (
+            <span className="product-discount">-{discountPercent}%</span>
+          )}
         </div>
 
         <div className="product-card-actions">
@@ -83,15 +70,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             className="btn-card-detail"
             onClick={() => onOpenDetail(product.id)}
           >
-            Chi tiết &amp; Chứng chỉ
+            Chi tiết
           </button>
           <button
             type="button"
             className="btn-card-ask"
-            title={`Hỏi chi tiết về ${product.name}`}
+            title={`Hỏi về ${product.name}`}
             onClick={() => onAskAboutProduct(product.name)}
           >
-            <MessageSquarePlus size={15} />
+            <MessageSquarePlus size={14} strokeWidth={1.75} />
           </button>
         </div>
       </div>

@@ -13,6 +13,10 @@ export interface ProductCard {
   is_available: boolean;
   image_url: string | null;
   reason?: string | null;
+  weight?: number | null;
+  price_per_kg?: number | null;
+  price_basis?: string | null;
+  category_name?: string | null;
 }
 
 export interface Certificate {
@@ -21,6 +25,8 @@ export interface Certificate {
   issuer?: string;
   issue_date?: string;
   expiry_date?: string;
+  issued_at?: string;
+  expires_at?: string;
 }
 
 export interface ProductDetailResponse {

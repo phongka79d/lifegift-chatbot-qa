@@ -4,6 +4,7 @@ import type { ChatMessage } from '../../types';
 
 import { MarkdownContent } from './MarkdownContent';
 import { ProductCard } from '../Product/ProductCard';
+import { ProductRail } from '../Product/ProductRail';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -13,14 +14,14 @@ interface MessageItemProps {
 }
 
 const INTENT_LABELS: Record<string, string> = {
-  PRODUCT_SEARCH: '🔍 Tìm kiếm sản phẩm',
-  PRODUCT_DETAIL: '📄 Chi tiết sản phẩm',
-  PRODUCT_RECOMMENDATION: '💡 Gợi ý theo khẩu vị',
-  PRODUCT_COMPARE: '⚖️ So sánh đặc sản',
-  KNOWLEDGE: '🌿 Kiến thức nông sản',
-  PRODUCT_REVIEW: '⭐ Đánh giá khách hàng',
-  ORDER_STATUS: '🚚 Tra cứu đơn hàng',
-  GENERAL: '💬 Trợ lý LifeGift',
+  PRODUCT_SEARCH: 'Tìm kiếm',
+  PRODUCT_DETAIL: 'Chi tiết',
+  PRODUCT_RECOMMENDATION: 'Gợi ý',
+  PRODUCT_COMPARE: 'So sánh',
+  KNOWLEDGE: 'Kiến thức',
+  PRODUCT_REVIEW: 'Đánh giá',
+  ORDER_STATUS: 'Đơn hàng',
+  GENERAL: 'Trò chuyện',
 };
 
 export const MessageItem: React.FC<MessageItemProps> = ({
@@ -54,7 +55,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       <div className="message-content-wrapper">
         <div className="message-header-info">
           <span className="message-author-name">
-            {isUser ? 'Bạn' : 'Trợ Lý LifeGift'}
+            {isUser ? 'Bạn' : 'LifeGift'}
           </span>
           <span className="message-time">{message.timestamp}</span>
           {!isUser && message.intent && (
@@ -68,18 +69,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           <MarkdownContent content={message.content} />
         </div>
 
-        {/* Product Cards Grid */}
         {message.products && message.products.length > 0 && (
-          <div className="product-cards-grid">
+          <ProductRail>
             {message.products.map((prod) => (
-              <ProductCard
-                key={prod.id}
-                product={prod}
-                onOpenDetail={onOpenProductDetail}
-                onAskAboutProduct={onAskAboutProduct}
-              />
+              <div key={prod.id} role="listitem">
+                <ProductCard
+                  product={prod}
+                  onOpenDetail={onOpenProductDetail}
+                  onAskAboutProduct={onAskAboutProduct}
+                />
+              </div>
             ))}
-          </div>
+          </ProductRail>
         )}
 
         {/* Action bar for assistant messages */}

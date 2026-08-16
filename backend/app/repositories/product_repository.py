@@ -38,6 +38,17 @@ _RESOLVE_STOPWORDS_FOLDED = frozenset({
 # Higher fetch cap when post-filtering by kind (demo catalog ~150 SKUs)
 _KIND_FETCH_CAP = 200
 
+# Prefer reachable http(s) images over leftover local /images paths that are not served.
+_IMAGE_URL_SQL = """
+COALESCE((
+    SELECT img.image_url
+    FROM product_images img
+    WHERE img.product_id = p.id
+    ORDER BY (img.image_url LIKE 'http%') DESC, img.is_primary DESC, img.sort_order ASC, img.id ASC
+    LIMIT 1
+), '')
+"""
+
 
 def _fold(text: str) -> str:
     """Lowercase + rough accent fold for matching."""
@@ -349,8 +360,11 @@ class ProductRepository:
                 conditions.append("COALESCE(p.sale_price, p.price) <= :max_price")
                 bind_params["max_price"] = params.max_price
         else:
-            # Need weight for per-kg; exclude missing weight at SQL level
+            # Need mass for per-kg; skip bottles (weight stored as ml) and missing weight
             conditions.append("p.weight IS NOT NULL AND p.weight > 0")
+            conditions.append(
+                "(p.unit IS NULL OR LOWER(p.unit) NOT IN ('chai', 'ml', 'lít', 'lit', 'chai/lọ'))"
+            )
             # price_per_kg = effective / (weight/1000) = effective * 1000 / weight
             if params.min_price is not None:
                 conditions.append(
@@ -389,13 +403,7 @@ class ProductRepository:
                 p.origin,
                 p.weight,
                 c.name AS category_name,
-                COALESCE((
-                    SELECT img.image_url
-                    FROM product_images img
-                    WHERE img.product_id = p.id
-                    ORDER BY img.is_primary DESC, img.sort_order ASC, img.id ASC
-                    LIMIT 1
-                ), '') AS image_url,
+                {_IMAGE_URL_SQL} AS image_url,
                 COALESCE(SUM(inv.available_quantity), 0) AS available_quantity
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
@@ -487,7 +495,7 @@ class ProductRepository:
 
     def get_by_id(self, product_id: int) -> Optional[ProductDetailResponse]:
         """Fetch full product details, active certificates and inventory."""
-        sql = """
+        sql = f"""
             SELECT
                 p.id,
                 p.name,
@@ -508,7 +516,7 @@ class ProductRepository:
                 p.pricing_type,
                 p.stock_status,
                 p.is_featured,
-                COALESCE(img.image_url, '') AS image_url,
+                {_IMAGE_URL_SQL} AS image_url,
                 COALESCE(SUM(inv.available_quantity), 0) AS available_quantity,
                 pd.ingredients,
                 pd.taste_profile,
@@ -524,7 +532,6 @@ class ProductRepository:
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN brands b ON p.brand_id = b.id
-            LEFT JOIN product_images img ON p.id = img.product_id AND img.is_primary = 1
             LEFT JOIN inventories inv ON p.id = inv.product_id
             LEFT JOIN product_details pd ON p.id = pd.product_id
             WHERE p.id = :product_id AND p.status = 'ACTIVE'
@@ -532,7 +539,7 @@ class ProductRepository:
                 p.id, p.name, p.slug, p.sku, p.description, p.short_description,
                 p.category_id, c.name, p.brand_id, b.name, p.price, p.sale_price,
                 p.unit, p.weight, p.origin, p.pricing_type, p.stock_status, p.is_featured,
-                img.image_url, pd.ingredients, pd.taste_profile, pd.key_benefits, pd.suitable_for,
+                pd.ingredients, pd.taste_profile, pd.key_benefits, pd.suitable_for,
                 pd.usage_instructions, pd.storage_instructions, pd.shelf_life,
                 pd.producer_name, pd.production_area, pd.product_story, pd.extra_attributes
         """
@@ -564,6 +571,8 @@ class ProductRepository:
                 "certificate_code": c.certificate_code,
                 "issued_at": str(c.issued_at) if c.issued_at else None,
                 "expires_at": str(c.expires_at) if c.expires_at else None,
+                "issue_date": str(c.issued_at) if c.issued_at else None,
+                "expiry_date": str(c.expires_at) if c.expires_at else None,
                 "description": c.description,
                 "status": c.status,
             }
@@ -644,7 +653,7 @@ class ProductRepository:
         if not content_tokens:
             return None
 
-        sql = """
+        sql = f"""
             SELECT
                 p.id,
                 p.name,
@@ -654,14 +663,13 @@ class ProductRepository:
                 p.origin,
                 p.weight,
                 c.name AS category_name,
-                COALESCE(img.image_url, '') AS image_url,
+                {_IMAGE_URL_SQL} AS image_url,
                 COALESCE(SUM(inv.available_quantity), 0) AS available_quantity
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
-            LEFT JOIN product_images img ON p.id = img.product_id AND img.is_primary = 1
             LEFT JOIN inventories inv ON p.id = inv.product_id
             WHERE p.status = 'ACTIVE'
-            GROUP BY p.id, p.name, p.price, p.sale_price, p.origin, p.weight, c.name, img.image_url
+            GROUP BY p.id, p.name, p.price, p.sale_price, p.origin, p.weight, c.name
         """
         rows = self.session.execute(text(sql)).fetchall()
 
@@ -732,14 +740,13 @@ class ProductRepository:
                 p.origin,
                 p.weight,
                 c.name AS category_name,
-                COALESCE(img.image_url, '') AS image_url,
+                {_IMAGE_URL_SQL} AS image_url,
                 COALESCE(SUM(inv.available_quantity), 0) AS available_quantity
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
-            LEFT JOIN product_images img ON p.id = img.product_id AND img.is_primary = 1
             LEFT JOIN inventories inv ON p.id = inv.product_id
             WHERE p.id IN ({placeholders}) AND p.status = 'ACTIVE'
-            GROUP BY p.id, p.name, p.price, p.sale_price, p.origin, p.weight, c.name, img.image_url
+            GROUP BY p.id, p.name, p.price, p.sale_price, p.origin, p.weight, c.name
         """
         rows = self.session.execute(text(sql), bind_params).fetchall()
         id_map = {}

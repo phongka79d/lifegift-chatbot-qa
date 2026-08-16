@@ -48,21 +48,23 @@ export const Header: React.FC<HeaderProps> = ({
           <Sprout size={22} />
         </div>
         <div className="brand-info">
-          <h1>LifeGift AI Assistant</h1>
-          <p>Nông Sản Đặc Sản &amp; Tư Vấn Mua Sắm Chuẩn Xác</p>
+          <h1>LifeGift</h1>
+          <p>Tư vấn nông sản</p>
         </div>
+        <span
+          className={`status-pill ${isBackendHealthy === false ? 'is-offline' : ''}`}
+          title={isBackendHealthy === false ? 'Mất kết nối máy chủ' : 'Hệ thống đang hoạt động'}
+        >
+          <span className="status-dot" aria-hidden="true" />
+          <span className="status-pill-label">
+            {isBackendHealthy === false ? 'Ngoại tuyến' : 'Trực tuyến'}
+          </span>
+        </span>
       </div>
 
       <div className="header-actions">
-        <div className="system-status-indicator" title="Trạng thái hệ thống AI">
-          <span
-            className={`status-dot ${isBackendHealthy === false ? 'error' : ''}`}
-          />
-          <span>{isBackendHealthy === false ? 'Mất kết nối BE' : 'RAG & MySQL Online'}</span>
-        </div>
-
         <div className="user-selector-container">
-          <User size={15} />
+          <User size={15} aria-hidden="true" />
           <select
             id="user-select-dropdown"
             aria-label="Chọn tài khoản người dùng"
@@ -72,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {USER_ACCOUNTS.map((acc) => (
               <option key={acc.id} value={acc.id}>
-                {acc.name} ({acc.roleDescription})
+                {acc.name}
               </option>
             ))}
           </select>
@@ -82,10 +84,10 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onResetChat}
           className="new-chat-btn"
-          title="Bắt đầu phiên hội thoại mới"
+          title="Bắt đầu hội thoại mới"
         >
           <RotateCcw size={14} />
-          <span>Hội thoại mới</span>
+          <span className="new-chat-label">Hội thoại mới</span>
         </button>
       </div>
     </header>

@@ -74,8 +74,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title-wrap">
-            <p>{detail?.category_name || 'Đặc Sản Nông Sản'} &bull; {detail?.brand_name || 'LifeGift'}</p>
-            <h2>{detail ? detail.name : 'Chi Tiết Sản Phẩm'}</h2>
+            <p>{detail?.category_name || 'Nông sản'} · {detail?.brand_name || 'LifeGift'}</p>
+            <h2>{detail ? detail.name : 'Chi tiết sản phẩm'}</h2>
           </div>
           <button type="button" className="modal-close-btn" onClick={onClose} title="Đóng cửa sổ">
             <X size={18} />
@@ -124,13 +124,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         {/* Modal Content Body */}
         <div className="modal-content-body">
           {loading && (
-            <div style={{ textAlign: 'center', padding: '40px 0' }}>
-              <div className="typing-shimmer-indicator">
-                <span></span><span></span><span></span>
-              </div>
-              <p style={{ marginTop: 12, color: 'var(--text-subtle)', fontSize: '0.85rem' }}>
-                Đang tải thông tin chi tiết từ hệ sinh thái LifeGift...
-              </p>
+            <div className="message-bubble is-skeleton">
+              <div className="skeleton-box skeleton-text-line medium" />
+              <div className="skeleton-box skeleton-text-line long" />
+              <div className="skeleton-box skeleton-text-line short" />
             </div>
           )}
 
@@ -144,48 +141,44 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <>
               {activeTab === 'overview' && (
                 <div>
-                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
+                  <div className="modal-overview">
                     <img
                       src={detail.image_url || 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600'}
                       alt={detail.name}
-                      style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--border-light)' }}
                     />
-                    <div style={{ flex: 1, minWidth: 240 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-                        <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary-forest)' }}>
+                    <div className="modal-overview-copy">
+                      <div className="product-card-pricing-row" style={{ marginBottom: 8 }}>
+                        <span className="product-effective-price" style={{ fontSize: '1.25rem' }}>
                           {formatVND(detail.effective_price)}
                         </span>
                         {detail.sale_price && (
-                          <span style={{ fontSize: '0.9rem', color: 'var(--text-subtle)', textDecoration: 'line-through' }}>
+                          <span className="product-original-price">
                             {formatVND(detail.price)}
                           </span>
                         )}
                       </div>
-
-                      <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', marginBottom: 8 }}>
-                        {detail.description || 'Đặc sản nông nghiệp sạch được kiểm soát chất lượng từ khâu gieo trồng đến thu hoạch.'}
+                      <p className="review-comment" style={{ marginBottom: 8 }}>
+                        {detail.description || 'Đặc sản được kiểm soát chất lượng từ gieo trồng đến thu hoạch.'}
                       </p>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: 'var(--text-subtle)' }}>
-                        <div><MapPin size={13} style={{ display: 'inline', marginRight: 4 }} /> Xuất xứ: <strong style={{ color: 'var(--text-main)' }}>{detail.origin || 'Việt Nam'}</strong></div>
-                        <div><Clock size={13} style={{ display: 'inline', marginRight: 4 }} /> Tồn kho khả dụng: <strong style={{ color: 'var(--success-green)' }}>{detail.available_quantity} sản phẩm</strong></div>
-                        {detail.shelf_life && <div>Hạn sử dụng: {detail.shelf_life}</div>}
-                        {detail.storage_instructions && <div>Bảo quản: {detail.storage_instructions}</div>}
+                      <div className="modal-section">
+                        <p><MapPin size={13} /> Xuất xứ: {detail.origin || 'Việt Nam'}</p>
+                        <p><Clock size={13} /> Tồn kho: {detail.available_quantity} sản phẩm</p>
+                        {detail.shelf_life && <p>Hạn sử dụng: {detail.shelf_life}</p>}
+                        {detail.storage_instructions && <p>Bảo quản: {detail.storage_instructions}</p>}
                       </div>
                     </div>
                   </div>
 
                   <button
                     type="button"
-                    className="btn-card-detail"
-                    style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%' }}
+                    className="btn-card-detail modal-ask-btn"
                     onClick={() => {
                       onClose();
                       onAskAboutProduct(detail.name);
                     }}
                   >
                     <MessageCircle size={16} />
-                    <span>Hỏi trợ lý về sản phẩm này</span>
+                    Hỏi về sản phẩm này
                   </button>
                 </div>
               )}
@@ -193,38 +186,30 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               {activeTab === 'taste' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {detail.taste_profile && (
-                    <div>
-                      <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-forest)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Hồ sơ hương vị (Taste Profile)
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>{detail.taste_profile}</p>
+                    <div className="modal-section">
+                      <h4>Hương vị</h4>
+                      <p>{detail.taste_profile}</p>
                     </div>
                   )}
 
                   {detail.ingredients && (
-                    <div>
-                      <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-forest)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Thành phần tự nhiên
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>{detail.ingredients}</p>
+                    <div className="modal-section">
+                      <h4>Thành phần</h4>
+                      <p>{detail.ingredients}</p>
                     </div>
                   )}
 
                   {detail.key_benefits && (
-                    <div>
-                      <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-forest)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Lợi ích &amp; Công dụng
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>{detail.key_benefits}</p>
+                    <div className="modal-section">
+                      <h4>Công dụng</h4>
+                      <p>{detail.key_benefits}</p>
                     </div>
                   )}
 
                   {detail.suitable_for && (
-                    <div>
-                      <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-forest)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Đối tượng phù hợp
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>{detail.suitable_for}</p>
+                    <div className="modal-section">
+                      <h4>Phù hợp với</h4>
+                      <p>{detail.suitable_for}</p>
                     </div>
                   )}
                 </div>
@@ -233,22 +218,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               {activeTab === 'story' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {detail.product_story && (
-                    <div>
-                      <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-forest)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Câu chuyện nguồn gốc &amp; Vùng đất
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6, fontStyle: 'italic' }}>
-                        "{detail.product_story}"
-                      </p>
+                    <div className="modal-section">
+                      <h4>Nguồn gốc</h4>
+                      <p>{detail.product_story}</p>
                     </div>
                   )}
 
                   {detail.usage_instructions && (
-                    <div>
-                      <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-forest)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Hướng dẫn sử dụng &amp; Pha chế
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>{detail.usage_instructions}</p>
+                    <div className="modal-section">
+                      <h4>Cách dùng</h4>
+                      <p>{detail.usage_instructions}</p>
                     </div>
                   )}
                 </div>
@@ -286,7 +265,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           {'★'.repeat(Math.round(reviewsData.average_rating))}
                         </div>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>
-                          &bull; {reviewsData.total_reviews} đánh giá từ người mua đã xác thực
+                          &bull; {reviewsData.total_reviews} đánh giá đã duyệt
                         </span>
                       </div>
                       {reviewsData.reviews.map((r) => (

@@ -82,7 +82,21 @@ export async function fetchProductReviews(
   if (!res.ok) {
     throw new Error(`Không thể tải đánh giá sản phẩm #${productId}`);
   }
-  return res.json();
+  const raw = await res.json();
+  const items = Array.isArray(raw.reviews) ? raw.reviews : [];
+  return {
+    product_id: raw.product_id,
+    average_rating: Number(raw.average_rating || 0),
+    total_reviews: Number(raw.total_reviews ?? raw.review_count ?? items.length),
+    reviews: items.map((r: Record<string, unknown>) => ({
+      id: Number(r.id),
+      user_name: String(r.user_name || r.reviewer_name || 'Khách hàng'),
+      rating: Number(r.rating || 0),
+      comment: String(r.comment || r.content || r.title || ''),
+      is_verified_purchase: Boolean(r.is_verified_purchase ?? true),
+      created_at: String(r.created_at || ''),
+    })),
+  };
 }
 
 /**

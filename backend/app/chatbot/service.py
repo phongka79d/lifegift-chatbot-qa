@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from backend.app.chatbot.context_builder import build_chat_context, format_currency_vnd
-from backend.app.chatbot.llm import get_chat_model
+from backend.app.chatbot.llm import (
+    get_chat_model,
+    is_review_quality_theme,
+    parse_review_min_rating,
+)
 from backend.app.chatbot.prompts import (
     ANSWER_SYSTEM_PROMPT,
     LABELS,
@@ -378,14 +382,24 @@ class ChatbotService:
     async def _handle_product_review(
         self, extracted: IntentExtractionResult
     ) -> Tuple[List[ProductCard], str]:
+        min_rating = parse_review_min_rating(extracted.preferences, extracted.query)
+        quality = min_rating is not None or is_review_quality_theme(
+            extracted.preferences
+        ) or is_review_quality_theme(extracted.query)
+
         target_name = (
             extracted.product_names[0]
             if extracted.product_names
             else None
         )
+        if target_name and (
+            parse_review_min_rating(target_name) is not None
+            or is_review_quality_theme(target_name)
+        ):
+            target_name = None
         resolved = self.product_repo.resolve_by_name(target_name) if target_name else None
-        if not resolved and extracted.query:
-            # Only treat query as a product name when it resolves to a real SKU
+        # Only treat leftover query as a SKU when it is not a rating/quality phrase
+        if not resolved and extracted.query and not quality:
             maybe = self.product_repo.resolve_by_name(extracted.query)
             if maybe:
                 resolved = maybe
@@ -404,15 +418,19 @@ class ChatbotService:
             if not cat_ok:
                 category_id = None
 
+        # Never LIKE-search rating floors ("đánh giá trên 5 sao") or quality adjectives.
+        review_text = None if quality else extracted.query
         hits = self.review_repo.list_reviewed_products(
-            review_text=extracted.query,
+            review_text=review_text,
             category_id=category_id,
+            min_avg_rating=min_rating if min_rating is not None else (4.0 if quality else None),
             limit=5,
         )
         if not hits:
+            theme = review_text or extracted.category or "review"
             return [], render_note(
                 "reviews_none_matching",
-                theme=extracted.query or extracted.category or "review",
+                theme=theme,
             )
 
         cards = self.product_repo.get_by_ids([h["product_id"] for h in hits])

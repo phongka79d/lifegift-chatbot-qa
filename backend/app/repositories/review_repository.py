@@ -35,17 +35,23 @@ class ReviewRepository:
             text(sql), {"product_id": product_id, "limit": bounded_limit}
         ).fetchall()
 
-        reviews_list = [
-            {
-                "id": r.id,
-                "rating": r.rating,
-                "title": r.title,
-                "content": r.content,
-                "created_at": str(r.created_at),
-                "reviewer_name": r.reviewer_name or "Khách hàng",
-            }
-            for r in rows
-        ]
+        reviews_list = []
+        for r in rows:
+            name = r.reviewer_name or "Khách hàng"
+            body = r.content or r.title or ""
+            reviews_list.append(
+                {
+                    "id": r.id,
+                    "rating": r.rating,
+                    "title": r.title,
+                    "content": r.content,
+                    "comment": body,
+                    "created_at": str(r.created_at),
+                    "reviewer_name": name,
+                    "user_name": name,
+                    "is_verified_purchase": True,
+                }
+            )
 
         # Calculate summary statistics
         agg_sql = """
@@ -63,6 +69,7 @@ class ReviewRepository:
             "product_id": product_id,
             "average_rating": avg_rating,
             "review_count": total_count,
+            "total_reviews": total_count,
             "reviews": reviews_list,
         }
 
@@ -70,6 +77,7 @@ class ReviewRepository:
         self,
         review_text: Optional[str] = None,
         category_id: Optional[int] = None,
+        min_avg_rating: Optional[float] = None,
         limit: int = 5,
     ) -> List[Dict[str, Any]]:
         """Active products that have APPROVED reviews, optionally matching review text."""
@@ -89,6 +97,11 @@ class ReviewRepository:
             )
             params["theme"] = f"%{theme.lower()}%"
 
+        having = ""
+        if min_avg_rating is not None:
+            having = "HAVING AVG(r.rating) >= :min_avg_rating"
+            params["min_avg_rating"] = float(min_avg_rating)
+
         where_sql = " AND ".join(conditions)
         id_sql = f"""
             SELECT p.id AS product_id,
@@ -98,6 +111,7 @@ class ReviewRepository:
             INNER JOIN reviews r ON r.product_id = p.id
             WHERE {where_sql}
             GROUP BY p.id
+            {having}
             ORDER BY avg_rating DESC, review_count DESC, p.id ASC
             LIMIT :limit
         """
