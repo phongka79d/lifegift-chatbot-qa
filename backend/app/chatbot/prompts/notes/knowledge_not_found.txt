@@ -1,0 +1,1 @@
+No knowledge documents matched '{query_text}'. Be honest; do not fabricate information.

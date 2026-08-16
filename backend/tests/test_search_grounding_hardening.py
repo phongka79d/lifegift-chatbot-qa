@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from backend.app.chatbot.llm import parse_price_bounds, detect_price_unit, _parse_vnd_number
+from backend.app.chatbot.prompts import ANSWER_SYSTEM_PROMPT, INTENT_EXTRACTION_SYSTEM_PROMPT
 from backend.app.chatbot.router import normalize_extraction
 from backend.app.chatbot.service import ChatbotService
 from backend.app.models.tables import Category, Product
@@ -84,9 +85,9 @@ class TestDenialGuard:
     def test_empty_structured_fallback_surfaces_facets(self):
         svc = ChatbotService.__new__(ChatbotService)
         context = (
-            "KHÔNG CÓ SẢN PHẨM KHỚP BỘ LỌC (DỮ LIỆU MYSQL).\n"
-            "Lý do: UNKNOWN_CATEGORY.\n"
-            "Danh mục đang có hàng: Cà phê, Trà, Hạt dinh dưỡng"
+            "NO PRODUCTS MATCH FILTERS (MYSQL DATA).\n"
+            "Reason: UNKNOWN_KIND.\n"
+            "Available in-stock categories: Cà phê, Trà, Hạt dinh dưỡng"
         )
         answer = svc._format_deterministic_fallback("Có gạo nào không?", context)
         assert "không" in answer.lower() or "chưa" in answer.lower()
@@ -396,6 +397,14 @@ def test_compare_without_two_names_falls_back_to_search(db_session: Session):
 
     products, context = asyncio.run(_run())
     assert products
-    assert "hai" in context.lower() or "so sánh" in context.lower()
+    assert "two sku" in context.lower() or "constrained search" in context.lower()
     for p in products:
         assert p.effective_price <= 240000
+
+
+def test_prompts_loaded_in_english_require_vietnamese_replies():
+    assert "intent classifier" in INTENT_EXTRACTION_SYSTEM_PROMPT.lower()
+    assert "Reply to the customer in natural, polite Vietnamese" in ANSWER_SYSTEM_PROMPT
+    assert "Never answer the customer in English" in ANSWER_SYSTEM_PROMPT
+    # Extraction prompt must not instruct a customer-facing English reply
+    assert "Do not answer the customer" in INTENT_EXTRACTION_SYSTEM_PROMPT

@@ -1,0 +1,1 @@
+The user asked in VND/kg. Only state per-kg estimates when the product line has price_per_kg in CONTEXT; always also state the package price.

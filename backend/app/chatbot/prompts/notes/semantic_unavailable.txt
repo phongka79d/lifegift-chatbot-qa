@@ -1,0 +1,1 @@
+Semantic (Qdrant) ranking is unavailable; this list is MySQL hard-filter only. State that preference matching is limited; do not invent flavor notes.

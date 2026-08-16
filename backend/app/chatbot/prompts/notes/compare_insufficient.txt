@@ -1,0 +1,1 @@
+Fewer than two SKUs were resolved for a named comparison. Do not invent product names. Below is a constrained search by kind/price/origin taken from the question.

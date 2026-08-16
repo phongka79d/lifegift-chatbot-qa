@@ -1,0 +1,5 @@
+GROUNDING CONTEXT:
+{context}
+
+CUSTOMER QUESTION:
+{user_message}

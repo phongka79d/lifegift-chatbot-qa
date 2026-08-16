@@ -1,0 +1,1 @@
+No product matched the name '{target_name}'. Tell the customer clearly and suggest available categories. Do not invent products.

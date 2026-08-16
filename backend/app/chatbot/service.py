@@ -8,7 +8,12 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from backend.app.chatbot.context_builder import build_chat_context, format_currency_vnd
 from backend.app.chatbot.llm import get_chat_model
-from backend.app.chatbot.prompts import ANSWER_SYSTEM_PROMPT
+from backend.app.chatbot.prompts import (
+    ANSWER_SYSTEM_PROMPT,
+    LABELS,
+    load_note,
+    render_note,
+)
 from backend.app.chatbot.router import IntentRouter
 from backend.app.rag.retriever import QdrantRetriever
 from backend.app.repositories.chat_repository import ChatRepository
@@ -104,7 +109,7 @@ class ChatbotService:
             products, context_str = await self._handle_order_status(extracted, user_id)
             metadata["tool"] = "get_order_status"
         else:
-            context_str = "Khách hàng gửi câu hỏi chung hoặc lời chào. Hãy chào đón nồng nhiệt và giới thiệu các nhóm nông sản thế mạnh của LifeGift (Cà phê Tây Nguyên, Trà cổ thụ Hà Giang, Mật ong rừng U Minh, Hạt dinh dưỡng, Nông sản sấy và Hộp quà Tết)."
+            context_str = load_note("general_greeting")
             metadata["tool"] = "general"
 
         # 6. Generate final conversational answer (grounded; fall back if LLM ignores product list)
@@ -209,15 +214,8 @@ class ChatbotService:
             available_categories=result.available_categories or None,
         )
         if products:
-            if price_unit == PriceUnitEnum.PER_KG.value:
-                context += (
-                    "\n\nLƯU Ý CHO TRỢ LÝ: Người dùng hỏi theo đồng/kg. "
-                    "Chỉ nêu ước tính /kg khi dòng sản phẩm có price_per_kg; luôn nêu giá gói."
-                )
-            else:
-                context += (
-                    "\n\nLƯU Ý CHO TRỢ LÝ: Giá hiển thị là giá gói/hộp catalog (package price)."
-                )
+            note_name = "per_kg" if price_unit == PriceUnitEnum.PER_KG.value else "package_price"
+            context += f"\n\n{LABELS['ASSISTANT_NOTE']} {load_note(note_name)}"
         return products, context, meta
 
     async def _handle_recommendation(
@@ -264,10 +262,7 @@ class ChatbotService:
 
         context = build_chat_context(products=products)
         if not semantic_used and soft:
-            context += (
-                "\n\nLƯU Ý CHO TRỢ LÝ: Hệ thống gợi ý theo ngữ nghĩa (Qdrant) hiện không khả dụng, "
-                "danh sách trên chỉ được lọc theo tiêu chí cứng từ MySQL. Hãy nêu rõ rằng việc so khớp sở thích bị giới hạn và không tự suy đoán thêm hương vị."
-            )
+            context += f"\n\n{LABELS['ASSISTANT_NOTE']} {load_note('semantic_unavailable')}"
         return products, context, {
             "semantic_used": semantic_used,
             "no_match": False,
@@ -304,7 +299,7 @@ class ChatbotService:
         if not resolved:
             return (
                 [],
-                f"Không tìm thấy sản phẩm nào khớp với tên '{target_name}' trong hệ thống. Hãy thông báo rõ ràng cho khách và gợi ý các danh mục có sẵn.",
+                render_note("product_not_found", target_name=target_name),
                 {"retrieval_count": 0},
             )
 
@@ -347,24 +342,23 @@ class ChatbotService:
         if len(resolved_cards) < 2:
             # Same constrained search as product search (category/query/price_unit/min/max)
             products, search_context, _meta = await self._handle_product_search(extracted)
-            notice = (
-                "Không đủ hai tên sản phẩm (SKU) resolve được để so sánh trực tiếp. "
-                "So sánh theo tên cần ít nhất hai sản phẩm cụ thể trong catalog; "
-                "không được bịa tên. Dưới đây là kết quả tìm kiếm theo loại/giá/xuất xứ "
-                "trích từ câu hỏi."
-            )
+            notice = load_note("compare_insufficient")
             if missing_names:
-                notice += f" Không tìm thấy: {', '.join(missing_names)}."
+                notice += " " + render_note(
+                    "compare_missing_names", missing_names=", ".join(missing_names)
+                )
             elif names:
-                notice += " Các tên nêu ra chưa khớp đủ hai SKU."
+                notice += " The stated names did not resolve to two catalog SKUs."
             else:
-                notice += " Câu hỏi chưa nêu hai tên sản phẩm cụ thể."
+                notice += " The question did not name two specific products."
             context = notice + "\n\n" + search_context
             return products, context
 
         context = build_chat_context(comparison_products=detail_list)
         if missing_names:
-            context += f"\nLƯU Ý: Không tìm thấy sản phẩm sau trong hệ thống: {', '.join(missing_names)}. Hãy giải thích rõ ràng."
+            context += "\n" + render_note(
+                "compare_missing_names", missing_names=", ".join(missing_names)
+            )
 
         return resolved_cards, context
 
@@ -375,10 +369,7 @@ class ChatbotService:
         chunks = self.retriever.retrieve(query=query_text, limit=4)
 
         if not chunks:
-            context = (
-                f"Không tìm thấy tài liệu kiến thức chuyên sâu khớp với câu hỏi '{query_text}'. "
-                "Hãy thông báo trung thực rằng hiện tại tài liệu chưa có thông tin cụ thể này và không được bịa đặt."
-            )
+            context = render_note("knowledge_not_found", query_text=query_text)
         else:
             context = build_chat_context(knowledge_chunks=chunks)
 
@@ -394,7 +385,7 @@ class ChatbotService:
         )
         resolved = self.product_repo.resolve_by_name(target_name)
         if not resolved:
-            return [], f"Chưa tìm thấy sản phẩm '{target_name}' để xem đánh giá."
+            return [], render_note("review_not_found", target_name=target_name)
 
         reviews_data = self.review_repo.get_product_reviews(resolved.id, limit=5)
         context = build_chat_context(
@@ -409,21 +400,21 @@ class ChatbotService:
         if user_id is None:
             return (
                 [],
-                "Khách hàng chưa đăng nhập. Hãy lịch sự yêu cầu khách hàng đăng nhập tài khoản để tra cứu trạng thái đơn hàng nhằm đảm bảo tính bảo mật và riêng tư.",
+                load_note("order_login_required"),
             )
 
         order_code = extracted.order_code
         if not order_code:
             return (
                 [],
-                "Khách hàng chưa cung cấp mã đơn hàng. Hãy hướng dẫn khách hàng cung cấp mã đơn hàng hợp lệ (ví dụ: ORD-20260812-0001) để hệ thống tra cứu.",
+                load_note("order_code_missing"),
             )
 
         order_data = self.order_repo.get_order_status(user_id=user_id, order_code=order_code)
         if not order_data:
             return (
                 [],
-                f"Không tìm thấy đơn hàng mã '{order_code}' thuộc quyền sở hữu của tài khoản hiện tại. Hãy thông báo rõ ràng cho khách kiểm tra lại mã đơn.",
+                render_note("order_not_found", order_code=order_code),
             )
 
         context = build_chat_context(order=order_data)
@@ -471,7 +462,9 @@ class ChatbotService:
                     else:
                         messages.append(AIMessage(content=m.content))
 
-                prompt_content = f"DỮ LIỆU THỰC TẾ ĐƯỢC CUNG CẤP (GROUNDING CONTEXT):\n{context}\n\nCÂU HỎI CỦA KHÁCH HÀNG: {user_message}"
+                prompt_content = render_note(
+                    "human_turn", context=context, user_message=user_message
+                )
                 messages.append(HumanMessage(content=prompt_content))
 
                 response = await self.llm.ainvoke(messages)
@@ -485,76 +478,74 @@ class ChatbotService:
 
     def _format_deterministic_fallback(self, user_message: str, context: str) -> str:
         """Deterministic, grounded answer formatter for offline / test environments."""
-        if "DANH SÁCH SẢN PHẨM TÌM THẤY" in context:
-            limited = "không khả dụng" in context or "bị giới hạn" in context
-            if "LƯU Ý CHO TRỢ LÝ" in context:
-                context = context.split("LƯU Ý CHO TRỢ LÝ")[0].rstrip()
+        products_header = LABELS["PRODUCTS_FOUND"]
+        if products_header in context or "PRODUCTS FOUND" in context:
+            limited = "preference matching is limited" in context.lower()
+            note_mark = LABELS["ASSISTANT_NOTE"]
+            if note_mark in context:
+                context = context.split(note_mark)[0].rstrip()
             answer = (
                 "Dưới đây là các sản phẩm nông sản LifeGift phù hợp với yêu cầu của bạn được kiểm tra trực tiếp từ kho hàng:\n\n"
-                + context.replace("DANH SÁCH SẢN PHẨM TÌM THẤY (DỮ LIỆU TỪ MYSQL):\n", "")
+                + context.replace(products_header + "\n", "")
                 + "\n\nBạn có thể nhấn vào thẻ sản phẩm bên dưới để xem chi tiết hoặc đặt hàng trực tiếp."
             )
             if limited:
                 answer += "\n\nLưu ý: hiện tại hệ thống chưa thể so khớp sở thích theo ngữ nghĩa nên danh sách trên được lọc theo tiêu chí cứng (ngân sách, danh mục, tồn kho)."
             return answer
-        if (
-            "KHÔNG CÓ SẢN PHẨM KHỚP" in context
-            or "không có sản phẩm nào trong kho đáp ứng" in context.lower()
-            or "Không có sản phẩm nào trong kho" in context
-        ):
+        if LABELS["NO_MATCH"] in context or "NO PRODUCTS MATCH FILTERS" in context:
             answer = (
                 "Dạ, hiện tại LifeGift chưa có sản phẩm nào trong kho khớp đúng bộ lọc bạn đưa ra. "
                 "Bạn có thể nới lỏng ngân sách, danh mục hoặc tiêu chí khác nhé!"
             )
-            # Surface available categories from structured empty context when present
+            cat_prefix = LABELS["AVAILABLE_CATEGORIES"].lower()
             for line in context.splitlines():
-                if line.strip().lower().startswith("danh mục đang có hàng"):
+                if line.strip().lower().startswith(cat_prefix.lower()):
                     answer += f"\n\n{line.strip()}"
                     break
             return answer
-        elif "THÔNG TIN CHI TIẾT SẢN PHẨM" in context:
+        elif LABELS["PRODUCT_DETAIL"] in context:
             return (
                 "Dạ, LifeGift xin gửi thông tin chi tiết về sản phẩm:\n\n"
-                + context.replace("THÔNG TIN CHI TIẾT SẢN PHẨM:\n", "")
+                + context.replace(LABELS["PRODUCT_DETAIL"] + "\n", "")
                 + "\n\nSản phẩm có đầy đủ giấy tờ chứng nhận an toàn và hiện đang có sẵn trong kho."
             )
-        elif "SO SÁNH CÁC SẢN PHẨM" in context:
+        elif LABELS["COMPARISON"] in context:
             return (
                 "Dạ, đây là bảng đối chiếu thông tin chi tiết giữa các sản phẩm bạn quan tâm:\n\n"
-                + context.replace("SO SÁNH CÁC SẢN PHẨM ĐƯỢC YÊU CẦU:\n", "")
+                + context.replace(LABELS["COMPARISON"] + "\n", "")
                 + "\n\nTùy theo khẩu vị và sở thích cá nhân, bạn có thể lựa chọn sản phẩm phù hợp nhất nhé!"
             )
-        elif "THÔNG TIN ĐƠN HÀNG" in context:
+        elif LABELS["ORDER"] in context:
             return (
                 "Dạ, LifeGift đã tra cứu thành công thông tin đơn hàng của bạn:\n\n"
-                + context.replace("THÔNG TIN ĐƠN HÀNG:\n", "")
+                + context.replace(LABELS["ORDER"] + "\n", "")
                 + "\n\nNếu cần hỗ trợ thêm về vận chuyển, bạn vui lòng nhắn thêm nhé!"
             )
-        elif "đăng nhập" in context.lower():
+        elif "not logged in" in context.lower() or "sign in" in context.lower():
             return (
                 "Dạ, để bảo mật thông tin đơn hàng, bạn vui lòng đăng nhập vào tài khoản của mình trên LifeGift để tra cứu lộ trình đơn hàng nhé!"
             )
-        elif "chưa cung cấp mã đơn hàng" in context.lower():
+        elif "no order code" in context.lower() or "ord-20260812-0001" in context.lower():
             return (
                 "Dạ, bạn vui lòng cung cấp mã đơn hàng (ví dụ: ORD-20260812-0001) để em hỗ trợ tra cứu giúp bạn nhé!"
             )
-        elif "không tìm thấy đơn hàng" in context.lower():
+        elif "order" in context.lower() and "not found" in context.lower():
             return (
                 "Dạ, LifeGift không tìm thấy thông tin đơn hàng này trong tài khoản của bạn. Bạn vui lòng kiểm tra lại chính xác mã đơn hàng nhé!"
             )
-        elif "không tìm thấy sản phẩm" in context.lower():
+        elif "no product matched" in context.lower() or "reviews cannot be shown" in context.lower():
             return (
                 "Dạ, hiện tại LifeGift chưa tìm thấy sản phẩm phù hợp với từ khóa này. Bạn có thể tham khảo các dòng sản phẩm nông sản nổi bật như Cà phê Cầu Đất, Trà Shan Tuyết, Mật ong U Minh hoặc Hạt điều Bình Phước nhé!"
             )
-        elif "ĐÁNH GIÁ CỦA KHÁCH HÀNG" in context:
+        elif LABELS["REVIEWS_HEADER"] in context:
             return (
                 "Dạ, dưới đây là các nhận xét thực tế từ khách hàng đã trải nghiệm sản phẩm:\n\n"
                 + context
             )
-        elif "KIẾN THỨC NÔNG SẢN" in context:
+        elif LABELS["KNOWLEDGE"] in context:
             return (
                 "Dạ, LifeGift xin chia sẻ thông tin kiến thức hữu ích đến bạn:\n\n"
-                + context.replace("KIẾN THỨC NÔNG SẢN VÀ THÔNG TIN BÀI VIẾT (TỪ VECTOR RAG):\n", "")
+                + context.replace(LABELS["KNOWLEDGE"] + "\n", "")
             )
         else:
             return (
