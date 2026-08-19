@@ -82,7 +82,19 @@ mysql -u root -p lifegift_db < backend/migrations/001_add_product_details.sql
 mysql -u root -p lifegift_db < backend/migrations/002_add_product_certificates.sql
 mysql -u root -p lifegift_db < backend/migrations/003_add_chat_tables.sql
 mysql -u root -p lifegift_db < backend/migrations/004_add_effective_price.sql
+mysql -u root -p lifegift_db < backend/migrations/005_add_product_catalog_columns.sql
+mysql -u root -p lifegift_db < backend/migrations/006_fix_catalog_consistency.sql
+# Align existing DB to lifegift_demo_v2.sql without wiping data:
+mysql -u root -p lifegift_db < backend/migrations/007_sync_lifegift_demo_v2.sql
+# If 007 stopped mid-way previously, resume with:
+# mysql -u root -p lifegift_db < backend/migrations/007b_sync_lifegift_demo_v2_resume.sql
 ```
+
+Notes for `007_sync_lifegift_demo_v2`:
+- Does **not** run `DROP DATABASE` from `lifegift_demo_v2.sql`.
+- Keeps chatbot tables (`chat_*`, `product_details`, `product_certificates`) and `products.effective_price`.
+- Creates synthetic `MIG-REV-*` orders so existing reviews can satisfy v2 `order_id` FKs.
+- Does **not** overwrite catalog rows with the demo INSERT block from the SQL file.
 
 ### 4.2 Seed Demo Data
 Populate the database with 16 realistic Vietnamese agricultural products, active certificates, approved reviews, published articles, and sample customer orders:

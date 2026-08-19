@@ -53,9 +53,11 @@ def create_app() -> FastAPI:
     # Lazy import and register routers
     from backend.app.api.chat import router as chat_router
     from backend.app.api.products import router as products_router
+    from backend.app.api.coupons import router as coupons_router
 
     app.include_router(chat_router, prefix="/api", tags=["Chat"])
     app.include_router(products_router, prefix="/api", tags=["Products"])
+    app.include_router(coupons_router, prefix="/api", tags=["Coupons"])
 
     # Mount static files and web interface
     from pathlib import Path

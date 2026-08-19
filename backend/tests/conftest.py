@@ -73,7 +73,17 @@ def seed_test_database(session: Session):
         session.add(Brand(id=b["id"], name=b["name"], status=b["status"]))
 
     for u in USERS:
-        session.add(User(id=u["id"], email=u["email"], full_name=u["full_name"], phone=u["phone"]))
+        session.add(
+            User(
+                id=u["id"],
+                username=u.get("username") or f"user_{u['id']}",
+                password=u.get("password") or "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                email=u["email"],
+                full_name=u["full_name"],
+                phone=u["phone"],
+                status="ACTIVE",
+            )
+        )
 
     for w in WAREHOUSES:
         session.add(Warehouse(id=w["id"], name=w["name"], status=w["status"]))
@@ -81,17 +91,25 @@ def seed_test_database(session: Session):
     session.commit()
 
     for p in PRODUCTS:
+        status = p["status"]
+        stock_status = "IN_STOCK"
+        if status == "OUT_OF_STOCK":
+            status = "INACTIVE"
+            stock_status = "OUT_OF_STOCK"
         prod = Product(
             id=p["id"],
             category_id=p["category_id"],
             brand_id=p["brand_id"],
+            sku=p.get("sku") or f"SKU-{p['id']}",
             name=p["name"],
             slug=p["slug"],
             description=p["description"],
             price=p["price"],
             sale_price=p["sale_price"],
             origin=p["origin"],
-            status=p["status"],
+            status=status,
+            stock_status=stock_status,
+            unit=p.get("unit") or "Sản phẩm",
         )
         session.add(prod)
 
@@ -108,8 +126,10 @@ def seed_test_database(session: Session):
             Inventory(
                 product_id=p["id"],
                 warehouse_id=1,
+                quantity=p["stock"],
                 available_quantity=p["stock"],
                 reserved_quantity=0,
+                min_stock=0,
             )
         )
 
@@ -148,25 +168,13 @@ def seed_test_database(session: Session):
             )
         )
 
-    for rev in REVIEWS:
-        session.add(
-            Review(
-                id=rev["id"],
-                product_id=rev["product_id"],
-                user_id=rev["user_id"],
-                rating=rev["rating"],
-                title=rev["title"],
-                content=rev["content"],
-                status=rev["status"],
-            )
-        )
-
     for bc in BLOG_CATEGORIES:
         session.add(
             BlogCategory(id=bc["id"], name=bc["name"], slug=bc["slug"])
         )
 
     for blog in BLOG_POSTS:
+        blog_status = "HIDDEN" if blog["status"] == "ARCHIVED" else blog["status"]
         session.add(
             BlogPost(
                 id=blog["id"],
@@ -175,11 +183,12 @@ def seed_test_database(session: Session):
                 slug=blog["slug"],
                 summary=blog["summary"],
                 content=blog["content"],
-                status=blog["status"],
-                published_at=datetime.utcnow() if blog["status"] == "PUBLISHED" else None,
+                status=blog_status,
+                published_at=datetime.utcnow() if blog_status == "PUBLISHED" else None,
             )
         )
 
+    product_by_id = {p["id"]: p for p in PRODUCTS}
     for ord_data in ORDERS:
         session.add(
             Order(
@@ -192,12 +201,16 @@ def seed_test_database(session: Session):
             )
         )
         for item in ord_data["items"]:
+            prod = product_by_id[item["product_id"]]
             session.add(
                 OrderItem(
                     order_id=ord_data["id"],
                     product_id=item["product_id"],
+                    product_name=prod["name"],
+                    sku=prod.get("sku") or f"SKU-{prod['id']}",
+                    unit_price=item["price"],
                     quantity=item["quantity"],
-                    price=item["price"],
+                    subtotal=item["price"] * item["quantity"],
                 )
             )
         for hist in ord_data["history"]:
@@ -205,9 +218,61 @@ def seed_test_database(session: Session):
                 OrderStatusHistory(
                     order_id=ord_data["id"],
                     status=hist["status"],
-                    notes=hist["notes"],
+                    note=hist["notes"],
                 )
             )
+
+    session.commit()
+
+    # Reviews require order_id under v2 schema — attach to matching order item or synthesize
+    next_order_id = max((o["id"] for o in ORDERS), default=0) + 1
+    for rev in REVIEWS:
+        status = "HIDDEN" if rev["status"] == "REJECTED" else rev["status"]
+        matched_order_id = None
+        for ord_data in ORDERS:
+            if ord_data["user_id"] != rev["user_id"]:
+                continue
+            if any(i["product_id"] == rev["product_id"] for i in ord_data["items"]):
+                matched_order_id = ord_data["id"]
+                break
+        if matched_order_id is None:
+            prod = product_by_id[rev["product_id"]]
+            unit_price = float(prod.get("sale_price") or prod["price"])
+            session.add(
+                Order(
+                    id=next_order_id,
+                    order_code=f"MIG-REV-{next_order_id:08d}",
+                    user_id=rev["user_id"],
+                    total_amount=unit_price,
+                    order_status="DELIVERED",
+                    payment_status="PAID",
+                )
+            )
+            session.add(
+                OrderItem(
+                    order_id=next_order_id,
+                    product_id=rev["product_id"],
+                    product_name=prod["name"],
+                    sku=prod.get("sku") or f"SKU-{prod['id']}",
+                    unit_price=unit_price,
+                    quantity=1,
+                    subtotal=unit_price,
+                )
+            )
+            matched_order_id = next_order_id
+            next_order_id += 1
+        session.add(
+            Review(
+                id=rev["id"],
+                product_id=rev["product_id"],
+                user_id=rev["user_id"],
+                order_id=matched_order_id,
+                rating=rev["rating"],
+                title=rev["title"],
+                content=rev["content"],
+                status=status,
+            )
+        )
 
     session.commit()
 

@@ -170,12 +170,16 @@ def import_catalog(payload: Dict[str, Any], *, purge_other_products: bool = Fals
         inv_rows = []
         if inventories:
             for inv in inventories:
+                qty = inv.get("quantity")
+                if qty is None:
+                    qty = int(inv.get("available_quantity", 0)) + int(inv.get("reserved_quantity", 0))
                 inv_rows.append(
                     {
                         "product_id": inv["product_id"],
                         "warehouse_id": inv.get("warehouse_id") or 1,
-                        "available_quantity": inv.get("available_quantity", 0),
+                        "quantity": qty,
                         "reserved_quantity": inv.get("reserved_quantity", 0),
+                        "min_stock": inv.get("min_stock", 0),
                     }
                 )
         else:
@@ -184,19 +188,21 @@ def import_catalog(payload: Dict[str, Any], *, purge_other_products: bool = Fals
                     {
                         "product_id": p["id"],
                         "warehouse_id": 1,
-                        "available_quantity": p.get("stock", 0),
+                        "quantity": p.get("stock", 0),
                         "reserved_quantity": 0,
+                        "min_stock": 0,
                     }
                 )
 
         stats["inventories"] = _exec_many(
             session,
             """
-            INSERT INTO inventories (product_id, warehouse_id, available_quantity, reserved_quantity)
-            VALUES (:product_id, :warehouse_id, :available_quantity, :reserved_quantity)
+            INSERT INTO inventories (product_id, warehouse_id, quantity, reserved_quantity, min_stock)
+            VALUES (:product_id, :warehouse_id, :quantity, :reserved_quantity, :min_stock)
             ON DUPLICATE KEY UPDATE
-                available_quantity=VALUES(available_quantity),
-                reserved_quantity=VALUES(reserved_quantity)
+                quantity=VALUES(quantity),
+                reserved_quantity=VALUES(reserved_quantity),
+                min_stock=VALUES(min_stock)
             """,
             inv_rows,
             "inventories",

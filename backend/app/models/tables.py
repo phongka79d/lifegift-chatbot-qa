@@ -30,10 +30,19 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(PK_BIGINT, primary_key=True, autoincrement=True)
-    email = Column(String(255), nullable=False, unique=True)
-    full_name = Column(String(255), nullable=True)
-    phone = Column(String(50), nullable=True)
+    username = Column(String(100), nullable=False, unique=True)
+    password = Column(String(255), nullable=False)
+    email = Column(String(150), nullable=True, unique=True)
+    full_name = Column(String(150), nullable=False)
+    phone = Column(String(20), nullable=True, unique=True)
+    avatar = Column(String(500), nullable=True)
+    status = Column(
+        Enum("ACTIVE", "INACTIVE", "LOCKED", "PENDING", name="user_status"),
+        nullable=False,
+        default="ACTIVE",
+    )
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     orders = relationship("Order", back_populates="user", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
@@ -82,7 +91,7 @@ class Product(Base):
     pricing_type = Column(String(50), nullable=True, default="FIXED_PRICE")
     stock_status = Column(String(50), nullable=True, default="IN_STOCK")
     is_featured = Column(Boolean, nullable=False, default=False)
-    status = Column(Enum("ACTIVE", "INACTIVE", "OUT_OF_STOCK", name="product_status"), nullable=False, default="ACTIVE")
+    status = Column(Enum("ACTIVE", "INACTIVE", "DRAFT", name="product_status"), nullable=False, default="ACTIVE")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -169,8 +178,11 @@ class Inventory(Base):
     id = Column(PK_BIGINT, primary_key=True, autoincrement=True)
     product_id = Column(BigInteger, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     warehouse_id = Column(BigInteger, ForeignKey("warehouses.id", ondelete="CASCADE"), nullable=False)
-    available_quantity = Column(Integer, nullable=False, default=0)
+    quantity = Column(Integer, nullable=False, default=0)
     reserved_quantity = Column(Integer, nullable=False, default=0)
+    # MySQL GENERATED ALWAYS AS (quantity - reserved_quantity) STORED
+    available_quantity = Column(Integer, nullable=True)
+    min_stock = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     product = relationship("Product", back_populates="inventories")
@@ -181,12 +193,13 @@ class Review(Base):
     __tablename__ = "reviews"
 
     id = Column(PK_BIGINT, primary_key=True, autoincrement=True)
-    product_id = Column(BigInteger, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(BigInteger, ForeignKey("products.id"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    order_id = Column(BigInteger, ForeignKey("orders.id"), nullable=False)
     rating = Column(Integer, nullable=False)
-    title = Column(String(255), nullable=True)
+    title = Column(String(200), nullable=True)
     content = Column(Text, nullable=True)
-    status = Column(Enum("PENDING", "APPROVED", "REJECTED", name="review_status"), nullable=False, default="PENDING")
+    status = Column(Enum("PENDING", "APPROVED", "HIDDEN", name="review_status"), nullable=False, default="PENDING")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -212,7 +225,7 @@ class BlogPost(Base):
     slug = Column(String(255), nullable=False, unique=True)
     summary = Column(Text, nullable=True)
     content = Column(Text, nullable=True)
-    status = Column(Enum("DRAFT", "PUBLISHED", "ARCHIVED", name="blog_status"), nullable=False, default="DRAFT")
+    status = Column(Enum("DRAFT", "PUBLISHED", "HIDDEN", name="blog_status"), nullable=False, default="DRAFT")
     published_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -248,9 +261,12 @@ class OrderItem(Base):
 
     id = Column(PK_BIGINT, primary_key=True, autoincrement=True)
     order_id = Column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    product_id = Column(BigInteger, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(BigInteger, ForeignKey("products.id"), nullable=False)
+    product_name = Column(String(255), nullable=False)
+    sku = Column(String(80), nullable=False)
+    unit_price = Column(Numeric(15, 2), nullable=False)
     quantity = Column(Integer, nullable=False)
-    price = Column(Numeric(15, 2), nullable=False)
+    subtotal = Column(Numeric(15, 2), nullable=False)
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
@@ -262,10 +278,22 @@ class OrderStatusHistory(Base):
     id = Column(PK_BIGINT, primary_key=True, autoincrement=True)
     order_id = Column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
     status = Column(
-        Enum("PENDING", "PROCESSING", "SHIPPING", "DELIVERED", "CANCELLED", name="order_history_status"),
+        Enum(
+            "PENDING",
+            "CONFIRMED",
+            "PROCESSING",
+            "SHIPPING",
+            "DELIVERED",
+            "COMPLETED",
+            "CANCELLED",
+            "RETURN_REQUESTED",
+            "RETURNED",
+            name="order_history_status",
+        ),
         nullable=False,
     )
-    notes = Column(String(500), nullable=True)
+    note = Column(String(500), nullable=True)
+    changed_by = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     order = relationship("Order", back_populates="history")

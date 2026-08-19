@@ -41,7 +41,7 @@ class OrderRepository:
         hist_sql = """
             SELECT
                 status,
-                notes,
+                note,
                 created_at
             FROM order_status_history
             WHERE order_id = :order_id
@@ -51,7 +51,7 @@ class OrderRepository:
         history_list = [
             {
                 "status": h.status,
-                "notes": h.notes,
+                "notes": h.note,
                 "created_at": str(h.created_at),
             }
             for h in hist_rows

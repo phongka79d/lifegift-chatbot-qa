@@ -713,57 +713,89 @@ def seed_database():
         for b in BRANDS:
             session.execute(
                 text("""
-                    INSERT INTO brands (id, name, status)
-                    VALUES (:id, :name, :status)
-                    ON DUPLICATE KEY UPDATE name=VALUES(name), status=VALUES(status)
+                    INSERT INTO brands (id, name, slug, status)
+                    VALUES (:id, :name, :slug, :status)
+                    ON DUPLICATE KEY UPDATE name=VALUES(name), status=VALUES(status), slug=VALUES(slug)
                 """),
-                b
+                {
+                    "id": b["id"],
+                    "name": b["name"],
+                    "slug": b.get("slug") or f"brand-{b['id']}",
+                    "status": b["status"],
+                }
             )
 
         logger.info("Seeding users...")
         for u in USERS:
             session.execute(
                 text("""
-                    INSERT INTO users (id, email, full_name, phone)
-                    VALUES (:id, :email, :full_name, :phone)
-                    ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), phone=VALUES(phone)
+                    INSERT INTO users (id, username, password, email, full_name, phone, status)
+                    VALUES (:id, :username, :password, :email, :full_name, :phone, 'ACTIVE')
+                    ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), phone=VALUES(phone), email=VALUES(email)
                 """),
-                u
+                {
+                    "id": u["id"],
+                    "username": u.get("username") or f"user_{u['id']}",
+                    "password": u.get("password") or "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                    "email": u["email"],
+                    "full_name": u["full_name"],
+                    "phone": u["phone"],
+                }
             )
 
         logger.info("Seeding warehouses...")
         for w in WAREHOUSES:
             session.execute(
                 text("""
-                    INSERT INTO warehouses (id, name, status)
-                    VALUES (:id, :name, :status)
-                    ON DUPLICATE KEY UPDATE name=VALUES(name), status=VALUES(status)
+                    INSERT INTO warehouses (id, code, name, status)
+                    VALUES (:id, :code, :name, :status)
+                    ON DUPLICATE KEY UPDATE name=VALUES(name), status=VALUES(status), code=VALUES(code)
                 """),
-                w
+                {
+                    "id": w["id"],
+                    "code": w.get("code") or f"WH-{w['id']}",
+                    "name": w["name"],
+                    "status": w["status"],
+                }
             )
 
         logger.info("Seeding products & details...")
         for p in PRODUCTS:
+            status = p["status"]
+            stock_status = "IN_STOCK"
+            if status == "OUT_OF_STOCK":
+                status = "INACTIVE"
+                stock_status = "OUT_OF_STOCK"
             session.execute(
                 text("""
-                    INSERT INTO products (id, category_id, brand_id, name, slug, description, price, sale_price, origin, status)
-                    VALUES (:id, :category_id, :brand_id, :name, :slug, :description, :price, :sale_price, :origin, :status)
+                    INSERT INTO products (
+                        id, category_id, brand_id, sku, name, slug, description,
+                        price, sale_price, origin, unit, pricing_type, stock_status, status
+                    )
+                    VALUES (
+                        :id, :category_id, :brand_id, :sku, :name, :slug, :description,
+                        :price, :sale_price, :origin, :unit, 'FIXED_PRICE', :stock_status, :status
+                    )
                     ON DUPLICATE KEY UPDATE
                         category_id=VALUES(category_id), brand_id=VALUES(brand_id), name=VALUES(name),
                         description=VALUES(description), price=VALUES(price), sale_price=VALUES(sale_price),
-                        origin=VALUES(origin), status=VALUES(status)
+                        origin=VALUES(origin), status=VALUES(status), stock_status=VALUES(stock_status),
+                        sku=VALUES(sku), unit=VALUES(unit)
                 """),
                 {
                     "id": p["id"],
                     "category_id": p["category_id"],
                     "brand_id": p["brand_id"],
+                    "sku": p.get("sku") or f"SKU-{p['id']}",
                     "name": p["name"],
                     "slug": p["slug"],
                     "description": p["description"],
                     "price": p["price"],
                     "sale_price": p["sale_price"],
                     "origin": p["origin"],
-                    "status": p["status"],
+                    "unit": p.get("unit") or "Sản phẩm",
+                    "stock_status": stock_status,
+                    "status": status,
                 }
             )
 
@@ -776,14 +808,14 @@ def seed_database():
                 {"product_id": p["id"], "image_url": p["image"]}
             )
 
-            # Product inventory
+            # Product inventory (available_quantity is GENERATED from quantity - reserved)
             session.execute(
                 text("""
-                    INSERT INTO inventories (product_id, warehouse_id, available_quantity, reserved_quantity)
-                    VALUES (:product_id, 1, :available_quantity, 0)
-                    ON DUPLICATE KEY UPDATE available_quantity=VALUES(available_quantity)
+                    INSERT INTO inventories (product_id, warehouse_id, quantity, reserved_quantity, min_stock)
+                    VALUES (:product_id, 1, :quantity, 0, 0)
+                    ON DUPLICATE KEY UPDATE quantity=VALUES(quantity), reserved_quantity=VALUES(reserved_quantity)
                 """),
-                {"product_id": p["id"], "available_quantity": p["stock"]}
+                {"product_id": p["id"], "quantity": p["stock"]}
             )
 
             # Product details
@@ -836,23 +868,12 @@ def seed_database():
                 cert
             )
 
-        logger.info("Seeding reviews...")
-        for rev in REVIEWS:
-            session.execute(
-                text("""
-                    INSERT INTO reviews (id, product_id, user_id, rating, title, content, status)
-                    VALUES (:id, :product_id, :user_id, :rating, :title, :content, :status)
-                    ON DUPLICATE KEY UPDATE status=VALUES(status), rating=VALUES(rating)
-                """),
-                rev
-            )
-
         logger.info("Seeding blog categories...")
         for bc in BLOG_CATEGORIES:
             session.execute(
                 text("""
-                    INSERT INTO blog_categories (id, name, slug)
-                    VALUES (:id, :name, :slug)
+                    INSERT INTO blog_categories (id, name, slug, status)
+                    VALUES (:id, :name, :slug, 'ACTIVE')
                     ON DUPLICATE KEY UPDATE name=VALUES(name), slug=VALUES(slug)
                 """),
                 bc
@@ -860,27 +881,50 @@ def seed_database():
 
         logger.info("Seeding blog posts...")
         for blog in BLOG_POSTS:
+            blog_status = "HIDDEN" if blog["status"] == "ARCHIVED" else blog["status"]
             session.execute(
                 text("""
-                    INSERT INTO blog_posts (id, category_id, title, slug, summary, content, status, published_at)
-                    VALUES (:id, :category_id, :title, :slug, :summary, :content, :status, CURRENT_TIMESTAMP)
+                    INSERT INTO blog_posts (
+                        id, category_id, author_id, title, slug, summary, content, status, published_at
+                    )
+                    VALUES (
+                        :id, :category_id, :author_id, :title, :slug, :summary, :content, :status, CURRENT_TIMESTAMP
+                    )
                     ON DUPLICATE KEY UPDATE title=VALUES(title), content=VALUES(content), status=VALUES(status)
                 """),
-                blog
+                {
+                    **blog,
+                    "status": blog_status,
+                    "author_id": 1,
+                }
             )
 
         logger.info("Seeding orders...")
         for ord_data in ORDERS:
+            user = next((u for u in USERS if u["id"] == ord_data["user_id"]), None)
             session.execute(
                 text("""
-                    INSERT INTO orders (id, order_code, user_id, total_amount, order_status, payment_status)
-                    VALUES (:id, :order_code, :user_id, :total_amount, :order_status, :payment_status)
+                    INSERT INTO orders (
+                        id, order_code, user_id, receiver_name, receiver_phone,
+                        shipping_province, shipping_address, subtotal, total_amount,
+                        payment_method, order_status, payment_status
+                    )
+                    VALUES (
+                        :id, :order_code, :user_id, :receiver_name, :receiver_phone,
+                        :shipping_province, :shipping_address, :subtotal, :total_amount,
+                        'COD', :order_status, :payment_status
+                    )
                     ON DUPLICATE KEY UPDATE order_status=VALUES(order_status), payment_status=VALUES(payment_status)
                 """),
                 {
                     "id": ord_data["id"],
                     "order_code": ord_data["order_code"],
                     "user_id": ord_data["user_id"],
+                    "receiver_name": (user or {}).get("full_name") or f"User {ord_data['user_id']}",
+                    "receiver_phone": (user or {}).get("phone") or "0000000000",
+                    "shipping_province": "Việt Nam",
+                    "shipping_address": "Địa chỉ demo",
+                    "subtotal": ord_data["total_amount"],
                     "total_amount": ord_data["total_amount"],
                     "order_status": ord_data["order_status"],
                     "payment_status": ord_data["payment_status"],
@@ -888,31 +932,117 @@ def seed_database():
             )
 
             for item in ord_data["items"]:
+                prod = next((p for p in PRODUCTS if p["id"] == item["product_id"]), None)
+                product_name = prod["name"] if prod else f"Product {item['product_id']}"
+                sku = (prod.get("sku") if prod else None) or f"SKU-{item['product_id']}"
                 session.execute(
                     text("""
-                        INSERT INTO order_items (order_id, product_id, quantity, price)
-                        VALUES (:order_id, :product_id, :quantity, :price)
+                        INSERT INTO order_items (
+                            order_id, product_id, product_name, sku, unit_price, quantity, subtotal
+                        ) VALUES (
+                            :order_id, :product_id, :product_name, :sku, :unit_price, :quantity, :subtotal
+                        )
                     """),
                     {
                         "order_id": ord_data["id"],
                         "product_id": item["product_id"],
+                        "product_name": product_name,
+                        "sku": sku,
+                        "unit_price": item["price"],
                         "quantity": item["quantity"],
-                        "price": item["price"],
+                        "subtotal": item["price"] * item["quantity"],
                     }
                 )
 
             for hist in ord_data["history"]:
                 session.execute(
                     text("""
-                        INSERT INTO order_status_history (order_id, status, notes)
-                        VALUES (:order_id, :status, :notes)
+                        INSERT INTO order_status_history (order_id, status, note)
+                        VALUES (:order_id, :status, :note)
                     """),
                     {
                         "order_id": ord_data["id"],
                         "status": hist["status"],
-                        "notes": hist["notes"],
+                        "note": hist["notes"],
                     }
                 )
+
+        logger.info("Seeding reviews...")
+        max_order_id = session.execute(text("SELECT COALESCE(MAX(id), 0) FROM orders")).scalar() or 0
+        for rev in REVIEWS:
+            status = "HIDDEN" if rev["status"] == "REJECTED" else rev["status"]
+            order_id = session.execute(
+                text("""
+                    SELECT o.id
+                    FROM orders o
+                    JOIN order_items oi ON oi.order_id = o.id
+                    WHERE o.user_id = :user_id AND oi.product_id = :product_id
+                    ORDER BY o.id
+                    LIMIT 1
+                """),
+                {"user_id": rev["user_id"], "product_id": rev["product_id"]},
+            ).scalar()
+            if order_id is None:
+                max_order_id += 1
+                prod = next((p for p in PRODUCTS if p["id"] == rev["product_id"]), None)
+                unit_price = float((prod or {}).get("sale_price") or (prod or {}).get("price") or 0)
+                user = next((u for u in USERS if u["id"] == rev["user_id"]), None)
+                session.execute(
+                    text("""
+                        INSERT INTO orders (
+                            id, order_code, user_id, receiver_name, receiver_phone,
+                            shipping_province, shipping_address, subtotal, total_amount,
+                            payment_method, payment_status, order_status, note
+                        ) VALUES (
+                            :id, :order_code, :user_id, :receiver_name, :receiver_phone,
+                            'Việt Nam', 'Đơn tổng hợp review (seed)', :unit_price, :unit_price,
+                            'COD', 'PAID', 'COMPLETED', 'Synthetic review order'
+                        )
+                    """),
+                    {
+                        "id": max_order_id,
+                        "order_code": f"MIG-REV-{max_order_id:08d}",
+                        "user_id": rev["user_id"],
+                        "receiver_name": (user or {}).get("full_name") or f"User {rev['user_id']}",
+                        "receiver_phone": (user or {}).get("phone") or "0000000000",
+                        "unit_price": unit_price,
+                    },
+                )
+                session.execute(
+                    text("""
+                        INSERT INTO order_items (
+                            order_id, product_id, product_name, sku, unit_price, quantity, subtotal
+                        ) VALUES (
+                            :order_id, :product_id, :product_name, :sku, :unit_price, 1, :unit_price
+                        )
+                    """),
+                    {
+                        "order_id": max_order_id,
+                        "product_id": rev["product_id"],
+                        "product_name": (prod or {}).get("name") or f"Product {rev['product_id']}",
+                        "sku": (prod or {}).get("sku") or f"SKU-{rev['product_id']}",
+                        "unit_price": unit_price,
+                    },
+                )
+                order_id = max_order_id
+
+            session.execute(
+                text("""
+                    INSERT INTO reviews (id, product_id, user_id, order_id, rating, title, content, status)
+                    VALUES (:id, :product_id, :user_id, :order_id, :rating, :title, :content, :status)
+                    ON DUPLICATE KEY UPDATE status=VALUES(status), rating=VALUES(rating), order_id=VALUES(order_id)
+                """),
+                {
+                    "id": rev["id"],
+                    "product_id": rev["product_id"],
+                    "user_id": rev["user_id"],
+                    "order_id": order_id,
+                    "rating": rev["rating"],
+                    "title": rev["title"],
+                    "content": rev["content"],
+                    "status": status,
+                },
+            )
 
         logger.info("Seed data completed successfully!")
 
